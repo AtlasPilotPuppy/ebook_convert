@@ -17,3 +17,6 @@
 *.epub
 *.pdf
 debug_pipeline/
+
+# Serena
+.serena/
