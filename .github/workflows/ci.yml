@@ -48,13 +48,19 @@ jobs:
         run: cargo clippy --lib --bins --tests -- -D warnings
 
   test:
-    name: Test (${{ matrix.os }})
+    name: Test (${{ matrix.name }})
     needs: clippy
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - name: Linux
+            os: ubuntu-latest
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest
     steps:
       - name: Configure git line endings
         if: runner.os == 'Windows'
@@ -78,6 +84,10 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install poppler -y
 
+      - name: Install poppler (macOS)
+        if: runner.os == 'macOS'
+        run: brew install poppler
+
       - name: Build
         working-directory: ebook-convert-rs
         run: cargo build --all-targets
@@ -87,13 +97,29 @@ jobs:
         run: cargo test --lib --bins
 
   build-release:
-    name: Release build (${{ matrix.os }})
+    name: Release (${{ matrix.name }})
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: ebook-convert-rs
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: ebook-convert-rs.exe
+          - name: macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+            binary: ebook-convert-rs
+          - name: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            binary: ebook-convert-rs
     steps:
       - name: Configure git line endings
         if: runner.os == 'Windows'
@@ -102,22 +128,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "ebook-convert-rs -> ebook-convert-rs/target"
-          shared-key: "release-${{ matrix.os }}"
+          shared-key: "release-${{ matrix.name }}"
 
       - name: Build release binary
         working-directory: ebook-convert-rs
-        run: cargo build --release
+        run: cargo build --target ${{ matrix.target }} --release
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ebook-convert-rs-${{ matrix.os }}
-          path: |
-            ebook-convert-rs/target/release/ebook-convert-rs
-            ebook-convert-rs/target/release/ebook-convert-rs.exe
-          if-no-files-found: ignore
+          name: ebook-convert-rs-${{ matrix.name }}
+          path: ebook-convert-rs/target/${{ matrix.target }}/release/${{ matrix.binary }}
           retention-days: 30

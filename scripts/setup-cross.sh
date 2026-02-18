@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Install cross-compilation toolchains for building Linux and Windows
+# binaries from macOS.
+#
+# Usage: ./scripts/setup-cross.sh
+#
+# After running, you can build with:
+#   cargo build --target x86_64-pc-windows-gnu --release
+#   cargo build --target x86_64-unknown-linux-gnu --release
+#   cargo build --target aarch64-unknown-linux-gnu --release
+#
+# Or use: ./scripts/build-all.sh
+set -euo pipefail
+
+echo "==> Adding Rust targets..."
+rustup target add x86_64-pc-windows-gnu
+rustup target add x86_64-unknown-linux-gnu
+rustup target add aarch64-unknown-linux-gnu
+
+case "$(uname -s)" in
+  Darwin)
+    echo ""
+    echo "==> Installing cross-compilation linkers via Homebrew..."
+
+    # MinGW for Windows targets
+    if ! command -v x86_64-w64-mingw32-gcc &>/dev/null; then
+      echo "Installing mingw-w64 (Windows cross-linker)..."
+      brew install mingw-w64
+    else
+      echo "mingw-w64 already installed."
+    fi
+
+    # Linux x86_64 cross-linker
+    if ! command -v x86_64-unknown-linux-gnu-gcc &>/dev/null; then
+      echo "Installing x86_64-unknown-linux-gnu toolchain..."
+      brew tap SergioBenitez/osxct
+      brew install x86_64-unknown-linux-gnu
+    else
+      echo "x86_64-unknown-linux-gnu already installed."
+    fi
+
+    # Linux aarch64 cross-linker
+    if ! command -v aarch64-unknown-linux-gnu-gcc &>/dev/null; then
+      echo "Installing aarch64-unknown-linux-gnu toolchain..."
+      brew tap SergioBenitez/osxct 2>/dev/null || true
+      brew install aarch64-unknown-linux-gnu
+    else
+      echo "aarch64-unknown-linux-gnu already installed."
+    fi
+    ;;
+
+  Linux)
+    echo ""
+    echo "==> Installing cross-compilation linkers..."
+
+    if command -v apt-get &>/dev/null; then
+      sudo apt-get update
+      sudo apt-get install -y mingw-w64 gcc-aarch64-linux-gnu
+    elif command -v dnf &>/dev/null; then
+      sudo dnf install -y mingw64-gcc gcc-aarch64-linux-gnu
+    else
+      echo "Warning: manual linker installation may be needed."
+    fi
+    ;;
+
+  *)
+    echo "Cross-compilation setup is designed for macOS and Linux hosts."
+    exit 1
+    ;;
+esac
+
+echo ""
+echo "==> Verifying toolchains..."
+echo "Rust targets:"
+rustup target list --installed
+
+echo ""
+echo "Linkers:"
+for cmd in x86_64-w64-mingw32-gcc x86_64-unknown-linux-gnu-gcc aarch64-unknown-linux-gnu-gcc; do
+  if command -v "$cmd" &>/dev/null; then
+    echo "  $cmd: $(which $cmd)"
+  else
+    echo "  $cmd: NOT FOUND"
+  fi
+done
+
+echo ""
+echo "==> Cross-compilation setup complete!"
+echo "Build with: ./scripts/build-all.sh"
