@@ -24,6 +24,8 @@ convert-input-odt = { path = "../convert-input-odt" }
 convert-output-epub = { path = "../convert-output-epub" }
 convert-output-html = { path = "../convert-output-html" }
 convert-output-txt = { path = "../convert-output-txt" }
+convert-output-pdf = { path = "../convert-output-pdf" }
+convert-output-mobi = { path = "../convert-output-mobi" }
 clap.workspace = true
 anyhow.workspace = true
 log.workspace = true

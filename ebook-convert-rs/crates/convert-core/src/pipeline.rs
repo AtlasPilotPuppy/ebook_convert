@@ -61,6 +61,18 @@ impl Pipeline {
         self.report_progress(0.01, &format!("Running {} plugin", self.input_plugin.name()));
 
         let mut book = self.input_plugin.convert(input_path, options)?;
+
+        // If the input plugin didn't set a title, derive one from the filename
+        if book.metadata.title().is_none() {
+            if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
+                let title = stem
+                    .replace('_', " ")
+                    .replace('-', " ");
+                info!("No title in metadata; using filename: {}", title);
+                book.metadata.set_title(title);
+            }
+        }
+
         self.report_progress(0.20, "Input parsing complete");
 
         // Postprocess

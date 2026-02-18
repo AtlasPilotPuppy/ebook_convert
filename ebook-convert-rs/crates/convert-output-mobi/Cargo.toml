@@ -9,3 +9,4 @@ convert-core = { path = "../convert-core" }
 convert-utils = { path = "../convert-utils" }
 thiserror.workspace = true
 log.workspace = true
+regex.workspace = true

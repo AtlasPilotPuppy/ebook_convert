@@ -81,3 +81,4 @@ once_cell = "1"
 base64 = "0.22"
 mobi = "0.8"
 rtf-parser = "0.4"
+printpdf = { version = "0.8", features = ["jpeg", "png", "gif"] }

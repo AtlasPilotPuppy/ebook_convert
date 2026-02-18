@@ -232,6 +232,10 @@ fn get_output_plugin(format: EbookFormat) -> Result<Box<dyn OutputPlugin>> {
             Ok(Box::new(convert_output_html::HtmlOutputPlugin))
         }
         EbookFormat::Txt => Ok(Box::new(convert_output_txt::TxtOutputPlugin)),
+        EbookFormat::Pdf => Ok(Box::new(convert_output_pdf::PdfOutputPlugin)),
+        EbookFormat::Mobi | EbookFormat::Azw | EbookFormat::Azw3 => {
+            Ok(Box::new(convert_output_mobi::MobiOutputPlugin))
+        }
         _ => anyhow::bail!("Unsupported output format: {}", format),
     }
 }

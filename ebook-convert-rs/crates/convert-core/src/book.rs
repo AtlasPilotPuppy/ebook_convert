@@ -143,7 +143,11 @@ impl Metadata {
     }
 
     pub fn set_title(&mut self, title: impl Into<String>) {
-        self.set("title", title);
+        let t = title.into();
+        let trimmed = t.trim();
+        if !trimmed.is_empty() {
+            self.set("title", trimmed.to_string());
+        }
     }
 
     pub fn authors(&self) -> Vec<&str> {
