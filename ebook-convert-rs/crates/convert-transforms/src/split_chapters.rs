@@ -3,6 +3,8 @@
 //! Calibre splits at `<h1>` and `<h2>` tags (configurable via `split_on_page_break`).
 //! This produces multiple smaller XHTML files for better e-reader performance.
 
+use rayon::prelude::*;
+
 use convert_core::book::{BookDocument, ManifestData, ManifestItem, TocEntry};
 use convert_core::error::Result;
 use convert_core::options::ConversionOptions;
@@ -21,24 +23,40 @@ impl Transform for SplitChapters {
     }
 
     fn apply(&self, book: &mut BookDocument, _options: &ConversionOptions) -> Result<()> {
-        // Collect spine items to process
-        let spine_idrefs: Vec<String> = book.spine.iter().map(|s| s.idref.clone()).collect();
+        // Collect spine items that are candidates for splitting
+        let candidates: Vec<(String, String, String)> = book.spine.iter()
+            .filter_map(|s| {
+                book.manifest.by_id(&s.idref).and_then(|item| {
+                    if item.is_xhtml() {
+                        item.data.as_xhtml().and_then(|x| {
+                            if x.len() >= MIN_SPLIT_SIZE {
+                                Some((s.idref.clone(), item.href.clone(), x.to_string()))
+                            } else {
+                                None
+                            }
+                        })
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
 
-        for idref in &spine_idrefs {
-            let xhtml = match book.manifest.by_id(idref) {
-                Some(item) if item.is_xhtml() => match item.data.as_xhtml() {
-                    Some(x) if x.len() >= MIN_SPLIT_SIZE => x.to_string(),
-                    _ => continue,
-                },
-                _ => continue,
-            };
+        // Pre-compute chunk splits in parallel
+        let split_results: Vec<(String, String, Vec<ContentChunk>)> = candidates
+            .into_par_iter()
+            .filter_map(|(idref, href, xhtml)| {
+                let chunks = split_at_headings(&xhtml);
+                if chunks.len() > 1 {
+                    Some((idref, href, chunks))
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-            let original_href = book.manifest.by_id(idref).unwrap().href.clone();
-
-            let chunks = split_at_headings(&xhtml);
-            if chunks.len() <= 1 {
-                continue;
-            }
+        // Apply splits sequentially (modifies spine, manifest, TOC)
+        for (idref, original_href, chunks) in split_results {
 
             log::info!(
                 "Splitting '{}' into {} chapters",
@@ -54,7 +72,7 @@ impl Transform for SplitChapters {
                 .unwrap();
 
             // Remove original from spine (we'll replace it)
-            book.spine.remove(idref);
+            book.spine.remove(&idref);
 
             // Create new manifest items for each chunk
             let mut new_ids: Vec<String> = Vec::new();

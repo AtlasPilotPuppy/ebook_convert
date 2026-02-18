@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// The central intermediate representation for an ebook.
@@ -262,6 +263,11 @@ impl Manifest {
     /// Iterate over all items mutably.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ManifestItem> {
         self.items.iter_mut()
+    }
+
+    /// Parallel iterate over all items.
+    pub fn par_iter(&self) -> rayon::slice::Iter<'_, ManifestItem> {
+        self.items.par_iter()
     }
 
     /// Number of items.

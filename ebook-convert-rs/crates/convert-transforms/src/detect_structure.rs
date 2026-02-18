@@ -1,5 +1,7 @@
 //! DetectStructure transform — detects chapters, headings, and builds TOC.
 
+use rayon::prelude::*;
+
 use convert_core::book::{BookDocument, TocEntry};
 use convert_core::error::Result;
 use convert_core::options::ConversionOptions;
@@ -27,24 +29,31 @@ impl Transform for DetectStructure {
             .as_deref()
             .and_then(|r| Regex::new(r).ok());
 
-        // Scan XHTML content for headings
-        for item in book.manifest.iter() {
-            if !item.is_xhtml() {
-                continue;
-            }
+        // Collect XHTML items for parallel heading extraction
+        let xhtml_items: Vec<(String, String)> = book.manifest.iter()
+            .filter(|item| item.is_xhtml())
+            .filter_map(|item| item.data.as_xhtml().map(|x| (item.href.clone(), x.to_string())))
+            .collect();
 
-            if let Some(xhtml) = item.data.as_xhtml() {
-                let headings = extract_headings(xhtml, chapter_re.as_ref());
-                for (level, title) in headings {
-                    let href = if level <= 2 {
-                        item.href.clone()
-                    } else {
-                        format!("{}#heading-{}", item.href, title.len())
-                    };
-                    let mut entry = TocEntry::new(&title, &href);
-                    entry.klass = Some(format!("h{}", level));
-                    book.toc.add(entry);
-                }
+        // Extract headings in parallel
+        let all_headings: Vec<(String, Vec<(u8, String)>)> = xhtml_items.into_par_iter()
+            .map(|(href, xhtml)| {
+                let headings = extract_headings(&xhtml, chapter_re.as_ref());
+                (href, headings)
+            })
+            .collect();
+
+        // Build TOC entries sequentially
+        for (href, headings) in all_headings {
+            for (level, title) in headings {
+                let entry_href = if level <= 2 {
+                    href.clone()
+                } else {
+                    format!("{}#heading-{}", href, title.len())
+                };
+                let mut entry = TocEntry::new(&title, &entry_href);
+                entry.klass = Some(format!("h{}", level));
+                book.toc.add(entry);
             }
         }
 

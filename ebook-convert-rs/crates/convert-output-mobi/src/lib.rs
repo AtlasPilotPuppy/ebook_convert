@@ -6,6 +6,8 @@
 
 use std::path::Path;
 
+use rayon::prelude::*;
+
 use convert_core::book::{BookDocument, EbookFormat, ManifestData};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
@@ -160,23 +162,34 @@ fn write_pdb_header(pdb: &mut Vec<u8>, title: &str, total_records: usize) {
 
 fn build_mobi_html(book: &BookDocument) -> String {
     let tag_re = Regex::new(r"(?i)</?(!DOCTYPE|html|head|meta|link|title|xml)[^>]*>").unwrap();
-    let mut html = String::new();
 
+    // Collect spine XHTMLs
+    let spine_xhtmls: Vec<&str> = book.spine.iter()
+        .filter_map(|si| book.manifest.by_id(&si.idref))
+        .filter_map(|item| match &item.data {
+            ManifestData::Xhtml(ref x) => Some(x.as_str()),
+            _ => None,
+        })
+        .collect();
+
+    // Extract and clean bodies in parallel
+    let bodies: Vec<String> = spine_xhtmls.par_iter()
+        .map(|xhtml| {
+            let body = extract_body(xhtml);
+            tag_re.replace_all(&body, "").to_string()
+        })
+        .collect();
+
+    let mut html = String::new();
     html.push_str("<html><head><title>");
     html.push_str(
         &convert_utils::xml::escape_xml_text(book.metadata.title().unwrap_or("Untitled Document")),
     );
     html.push_str("</title></head><body>\n");
 
-    for spine_item in book.spine.iter() {
-        if let Some(item) = book.manifest.by_id(&spine_item.idref) {
-            if let ManifestData::Xhtml(ref xhtml) = item.data {
-                let body = extract_body(xhtml);
-                let cleaned = tag_re.replace_all(&body, "");
-                html.push_str(&cleaned);
-                html.push('\n');
-            }
-        }
+    for body in &bodies {
+        html.push_str(body);
+        html.push('\n');
     }
 
     html.push_str("</body></html>");

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use lopdf::Document;
+use rayon::prelude::*;
 
 use convert_core::book::{
     BookDocument, ManifestData, ManifestItem, Metadata, TocEntry,
@@ -139,22 +140,18 @@ fn extract_hybrid(
     let fonts = &pdftohtml_result.fonts;
     let html_pages = &pdftohtml_result.pages;
 
-    // Step 2: Classify each page
-    let mut classifications: Vec<(u32, PageType)> = Vec::new();
-    let mut text_count = 0u32;
-    let mut scanned_count = 0u32;
+    // Step 2: Classify each page (parallel)
+    let classifications: Vec<(u32, PageType)> = html_pages
+        .par_iter()
+        .map(|page| {
+            let page_type = classify::classify_page(page, fonts);
+            log::debug!("Page {}: {:?}", page.number, page_type);
+            (page.number, page_type)
+        })
+        .collect();
 
-    for page in html_pages {
-        let page_type = classify::classify_page(page, fonts);
-        if page_type == PageType::Text {
-            text_count += 1;
-        }
-        if page_type == PageType::Scanned {
-            scanned_count += 1;
-        }
-        classifications.push((page.number, page_type));
-        log::debug!("Page {}: {:?}", page.number, page_type);
-    }
+    let text_count = classifications.iter().filter(|(_, t)| *t == PageType::Text).count() as u32;
+    let scanned_count = classifications.iter().filter(|(_, t)| *t == PageType::Scanned).count() as u32;
 
     log::info!(
         "Classification: {} text, {} scanned, {} total pages",
@@ -183,102 +180,112 @@ fn extract_hybrid(
     };
 
     // Step 5: Load pdftohtml-extracted images into manifest
+    // Collect image entries with their paths
+    let image_dir = &pdftohtml_result.image_dir;
+    let image_entries: Vec<(u32, String, std::path::PathBuf)> = html_pages
+        .iter()
+        .flat_map(|page| {
+            page.images.iter().filter_map(move |img_elem| {
+                let src_path = image_dir.join(&img_elem.src);
+                if src_path.exists() {
+                    Some((page.number, img_elem.src.clone(), src_path))
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+
+    // Read image files in parallel
+    let loaded_images: Vec<(u32, String, Vec<u8>)> = image_entries
+        .par_iter()
+        .filter_map(|(page_num, src, path)| {
+            std::fs::read(path).ok().and_then(|data| {
+                if data.is_empty() { None } else { Some((*page_num, src.clone(), data)) }
+            })
+        })
+        .collect();
+
+    // Add to manifest sequentially
     let mut image_map: HashMap<String, String> = HashMap::new();
     let mut img_counter = 0u32;
 
-    for page in html_pages {
-        for img_elem in &page.images {
-            let src_path = pdftohtml_result.image_dir.join(&img_elem.src);
-            if src_path.exists() {
-                img_counter += 1;
-                let epub_href = format!("images/page{}_{}.jpg", page.number, img_counter);
-                let data = std::fs::read(&src_path).map_err(|e| {
-                    ConvertError::Pdf(format!(
-                        "Failed to read extracted image {}: {}",
-                        img_elem.src, e
-                    ))
-                })?;
+    for (page_num, src, data) in loaded_images {
+        img_counter += 1;
+        let epub_href = format!("images/page{}_{}.jpg", page_num, img_counter);
+        let mime = if src.ends_with(".png") { "image/png" } else { "image/jpeg" };
+        let img_id = format!("img_{}_{}", page_num, img_counter);
+        let item = ManifestItem::new(&img_id, &epub_href, mime, ManifestData::Binary(data));
+        book.manifest.add(item);
+        image_map.insert(src, epub_href);
+    }
 
-                if !data.is_empty() {
-                    // Detect mime type from extension
-                    let mime = if img_elem.src.ends_with(".png") {
-                        "image/png"
-                    } else {
-                        "image/jpeg"
-                    };
-                    let img_id = format!("img_{}_{}", page.number, img_counter);
-                    let item = ManifestItem::new(
-                        &img_id,
-                        &epub_href,
-                        mime,
-                        ManifestData::Binary(data),
-                    );
-                    book.manifest.add(item);
-                    image_map.insert(img_elem.src.clone(), epub_href);
+    // Step 6: Build XHTML per page based on classification (parallel build, sequential apply)
+    // First, collect scanned page images that need to be added to manifest
+    let mut scanned_images: Vec<(u32, String, String, Vec<u8>)> = Vec::new();
+    for (page_num, page_type) in &classifications {
+        if *page_type == PageType::Scanned {
+            if let Some(jpeg_data) = rendered_scanned.get(page_num) {
+                if !jpeg_data.is_empty() {
+                    let img_id = format!("img_scan{}", page_num);
+                    let img_href = format!("images/scan_page{}.jpg", page_num);
+                    scanned_images.push((*page_num, img_id, img_href, jpeg_data.clone()));
                 }
             }
         }
     }
 
-    // Step 6: Build XHTML per page based on classification
+    // Add scanned images to manifest and build href lookup
+    let mut scanned_href_map: HashMap<u32, String> = HashMap::new();
+    for (page_num, img_id, img_href, jpeg_data) in scanned_images {
+        let item = ManifestItem::new(&img_id, &img_href, "image/jpeg", ManifestData::Binary(jpeg_data));
+        book.manifest.add(item);
+        scanned_href_map.insert(page_num, img_href);
+    }
+
+    // Build XHTML content in parallel
+    let page_xhtmls: Vec<(u32, String, String, String)> = classifications
+        .par_iter()
+        .map(|(page_num, page_type)| {
+            let page_item_id = format!("page{}", page_num);
+            let page_href = format!("page{}.xhtml", page_num);
+
+            let xhtml = match page_type {
+                PageType::Text => {
+                    let pdf_page = html_pages.iter().find(|p| p.number == *page_num);
+                    match pdf_page {
+                        Some(page) => text_builder::build_text_page_xhtml(page, fonts, &image_map),
+                        None => build_placeholder_xhtml(*page_num),
+                    }
+                }
+                PageType::Scanned => {
+                    match scanned_href_map.get(page_num) {
+                        Some(img_href) => build_scanned_page_xhtml(*page_num, img_href),
+                        None => build_placeholder_xhtml(*page_num),
+                    }
+                }
+                PageType::ImageOnly => {
+                    let pdf_page = html_pages.iter().find(|p| p.number == *page_num);
+                    let image_hrefs: Vec<String> = pdf_page
+                        .map(|p| {
+                            p.images.iter()
+                                .filter_map(|img| image_map.get(&img.src).cloned())
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    build_image_page_xhtml(*page_num, "", &image_hrefs)
+                }
+                PageType::Blank => build_placeholder_xhtml(*page_num),
+            };
+
+            (*page_num, page_item_id, page_href, xhtml)
+        })
+        .collect();
+
+    // Apply results to manifest sequentially
     let mut page_href_map: HashMap<u32, String> = HashMap::new();
-
-    for (page_num, page_type) in &classifications {
-        let page_item_id = format!("page{}", page_num);
-        let page_href = format!("page{}.xhtml", page_num);
-        page_href_map.insert(*page_num, page_href.clone());
-
-        let xhtml = match page_type {
-            PageType::Text => {
-                // Find the parsed page data
-                let pdf_page = html_pages.iter().find(|p| p.number == *page_num);
-                match pdf_page {
-                    Some(page) => {
-                        text_builder::build_text_page_xhtml(page, fonts, &image_map)
-                    }
-                    None => build_placeholder_xhtml(*page_num),
-                }
-            }
-            PageType::Scanned => {
-                // Use pdftoppm rendered image
-                if let Some(jpeg_data) = rendered_scanned.get(page_num) {
-                    if !jpeg_data.is_empty() {
-                        let img_id = format!("img_scan{}", page_num);
-                        let img_href = format!("images/scan_page{}.jpg", page_num);
-                        let item = ManifestItem::new(
-                            &img_id,
-                            &img_href,
-                            "image/jpeg",
-                            ManifestData::Binary(jpeg_data.clone()),
-                        );
-                        book.manifest.add(item);
-                        build_scanned_page_xhtml(*page_num, &img_href)
-                    } else {
-                        build_placeholder_xhtml(*page_num)
-                    }
-                } else {
-                    build_placeholder_xhtml(*page_num)
-                }
-            }
-            PageType::ImageOnly => {
-                // Use extracted images from pdftohtml
-                let pdf_page = html_pages.iter().find(|p| p.number == *page_num);
-                let image_hrefs: Vec<String> = pdf_page
-                    .map(|p| {
-                        p.images
-                            .iter()
-                            .filter_map(|img| image_map.get(&img.src).cloned())
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-                build_image_page_xhtml(*page_num, "", &image_hrefs)
-            }
-            PageType::Blank => {
-                build_placeholder_xhtml(*page_num)
-            }
-        };
-
+    for (page_num, page_item_id, page_href, xhtml) in page_xhtmls {
+        page_href_map.insert(page_num, page_href.clone());
         let item = ManifestItem::new(
             &page_item_id,
             &page_href,

@@ -11,4 +11,14 @@ thiserror.workspace = true
 log.workspace = true
 zip.workspace = true
 quick-xml.workspace = true
+rayon.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+convert-utils = { path = "../convert-utils" }
+image.workspace = true
+
+[[bench]]
+name = "epub_bench"
+harness = false

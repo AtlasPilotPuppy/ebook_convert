@@ -9,5 +9,15 @@ convert-core = { path = "../convert-core" }
 convert-utils = { path = "../convert-utils" }
 thiserror.workspace = true
 log.workspace = true
+rayon.workspace = true
 regex.workspace = true
 printpdf.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+convert-utils = { path = "../convert-utils" }
+image.workspace = true
+
+[[bench]]
+name = "pdf_bench"
+harness = false

@@ -6,6 +6,8 @@
 
 use std::path::Path;
 
+use rayon::prelude::*;
+
 use convert_core::book::{BookDocument, EbookFormat, ManifestData};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
@@ -209,45 +211,60 @@ fn write_pdf(book: &BookDocument, output_path: &Path) -> Result<()> {
     }
     builder.y_pos -= 10.0;
 
-    // Content
+    // Content — extract text from spine items in parallel, then render sequentially
     let tag_re = Regex::new(r"<[^>]+>").unwrap();
     let heading_re = Regex::new(r"(?i)<h([1-6])[^>]*>(.*?)</h[1-6]>").unwrap();
     let para_re = Regex::new(r"(?is)<p[^>]*>(.*?)</p>").unwrap();
 
-    for spine_item in book.spine.iter() {
-        if let Some(item) = book.manifest.by_id(&spine_item.idref) {
-            if let ManifestData::Xhtml(ref xhtml) = item.data {
-                let body = extract_body(xhtml);
+    // Collect spine XHTMLs
+    let spine_xhtmls: Vec<&str> = book.spine.iter()
+        .filter_map(|si| book.manifest.by_id(&si.idref))
+        .filter_map(|item| match &item.data {
+            ManifestData::Xhtml(ref x) => Some(x.as_str()),
+            _ => None,
+        })
+        .collect();
 
-                for cap in heading_re.captures_iter(&body) {
+    // Extract headings and paragraphs in parallel
+    let extracted: Vec<(Vec<(u32, String)>, Vec<String>)> = spine_xhtmls.par_iter()
+        .map(|xhtml| {
+            let body = extract_body(xhtml);
+            let headings: Vec<(u32, String)> = heading_re.captures_iter(&body)
+                .filter_map(|cap| {
                     let level: u32 = cap[1].parse().unwrap_or(3);
                     let text = tag_re.replace_all(&cap[2], "").to_string();
                     let text = decode_entities(&text);
-                    if text.trim().is_empty() {
-                        continue;
-                    }
-
-                    let font_size = match level {
-                        1 => FONT_SIZE_H1,
-                        2 => FONT_SIZE_H2,
-                        _ => FONT_SIZE_H3,
-                    };
-                    builder.y_pos -= font_size * MM_PER_PT * 0.5;
-                    builder.write_line(text.trim(), font_size, BuiltinFont::HelveticaBold);
-                    builder.y_pos -= 2.0;
-                }
-
-                for cap in para_re.captures_iter(&body) {
+                    if text.trim().is_empty() { None } else { Some((level, text.trim().to_string())) }
+                })
+                .collect();
+            let paragraphs: Vec<String> = para_re.captures_iter(&body)
+                .filter_map(|cap| {
                     let text = tag_re.replace_all(&cap[1], " ").to_string();
                     let text = decode_entities(&text);
                     let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
-                    if text.is_empty() {
-                        continue;
-                    }
-                    builder.write_wrapped(&text, FONT_SIZE_BODY, BuiltinFont::Helvetica);
-                    builder.y_pos -= 2.0;
-                }
-            }
+                    if text.is_empty() { None } else { Some(text) }
+                })
+                .collect();
+            (headings, paragraphs)
+        })
+        .collect();
+
+    // Render sequentially
+    for (headings, paragraphs) in &extracted {
+        for (level, text) in headings {
+            let font_size = match level {
+                1 => FONT_SIZE_H1,
+                2 => FONT_SIZE_H2,
+                _ => FONT_SIZE_H3,
+            };
+            builder.y_pos -= font_size * MM_PER_PT * 0.5;
+            builder.write_line(text, font_size, BuiltinFont::HelveticaBold);
+            builder.y_pos -= 2.0;
+        }
+
+        for text in paragraphs {
+            builder.write_wrapped(text, FONT_SIZE_BODY, BuiltinFont::Helvetica);
+            builder.y_pos -= 2.0;
         }
     }
 

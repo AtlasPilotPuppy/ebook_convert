@@ -1,5 +1,7 @@
 //! LinearizeTables — converts HTML table markup to divs for devices without table support.
 
+use rayon::prelude::*;
+
 use convert_core::book::{BookDocument, ManifestData};
 use convert_core::error::Result;
 use convert_core::options::ConversionOptions;
@@ -39,18 +41,24 @@ impl Transform for LinearizeTables {
         let colgroup = Regex::new(r"(?i)</?colgroup[^>]*>").unwrap();
         let col_tag = Regex::new(r"(?i)<col[^>]*>").unwrap();
 
-        let mut count = 0u32;
+        // Collect XHTML items that contain tables
+        let xhtml_items: Vec<(String, String)> = book.manifest.iter()
+            .filter(|item| item.is_xhtml())
+            .filter_map(|item| {
+                item.data.as_xhtml().and_then(|x| {
+                    if x.contains("<table") || x.contains("<TABLE") {
+                        Some((item.id.clone(), x.to_string()))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
 
-        for item in book.manifest.iter_mut() {
-            if !item.is_xhtml() {
-                continue;
-            }
-            if let Some(xhtml) = item.data.as_xhtml() {
-                if !xhtml.contains("<table") && !xhtml.contains("<TABLE") {
-                    continue;
-                }
-
-                let mut s = xhtml.to_string();
+        // Process in parallel (Regex is Send + Sync)
+        let results: Vec<(String, String)> = xhtml_items.into_par_iter()
+            .map(|(id, xhtml)| {
+                let mut s = xhtml;
                 s = table_open.replace_all(&s, r#"<div class="linearized-table">"#).to_string();
                 s = table_close.replace_all(&s, "</div>").to_string();
                 s = tr_open.replace_all(&s, r#"<div class="linearized-row">"#).to_string();
@@ -69,9 +77,15 @@ impl Transform for LinearizeTables {
                 s = caption_close.replace_all(&s, "</div>").to_string();
                 s = colgroup.replace_all(&s, "").to_string();
                 s = col_tag.replace_all(&s, "").to_string();
+                (id, s)
+            })
+            .collect();
 
-                item.data = ManifestData::Xhtml(s);
-                count += 1;
+        // Apply back sequentially
+        let count = results.len() as u32;
+        for (id, new_xhtml) in results {
+            if let Some(item) = book.manifest.by_id_mut(&id) {
+                item.data = ManifestData::Xhtml(new_xhtml);
             }
         }
 

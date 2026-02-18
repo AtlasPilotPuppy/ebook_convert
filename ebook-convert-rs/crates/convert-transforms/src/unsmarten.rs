@@ -1,5 +1,7 @@
 //! UnsmartenPunctuation — converts typographic quotes/dashes/ellipsis to ASCII.
 
+use rayon::prelude::*;
+
 use convert_core::book::{BookDocument, ManifestData};
 use convert_core::error::Result;
 use convert_core::options::ConversionOptions;
@@ -31,27 +33,32 @@ impl Transform for UnsmartenPunctuation {
     }
 
     fn apply(&self, book: &mut BookDocument, _options: &ConversionOptions) -> Result<()> {
-        let mut count = 0u32;
+        // Collect XHTML items
+        let xhtml_items: Vec<(String, String)> = book.manifest.iter()
+            .filter(|item| item.is_xhtml())
+            .filter_map(|item| item.data.as_xhtml().map(|x| (item.id.clone(), x.to_string())))
+            .collect();
 
-        for item in book.manifest.iter_mut() {
-            if !item.is_xhtml() {
-                continue;
-            }
-            if let Some(xhtml) = item.data.as_xhtml() {
-                let mut new_xhtml = xhtml.to_string();
+        // Process in parallel
+        let results: Vec<(String, String)> = xhtml_items.into_par_iter()
+            .filter_map(|(id, xhtml)| {
+                let mut new_xhtml = xhtml;
                 let mut changed = false;
-
                 for &(from, to) in REPLACEMENTS {
                     if new_xhtml.contains(from) {
                         new_xhtml = new_xhtml.replace(from, to);
                         changed = true;
                     }
                 }
+                if changed { Some((id, new_xhtml)) } else { None }
+            })
+            .collect();
 
-                if changed {
-                    item.data = ManifestData::Xhtml(new_xhtml);
-                    count += 1;
-                }
+        // Apply back sequentially
+        let count = results.len() as u32;
+        for (id, new_xhtml) in results {
+            if let Some(item) = book.manifest.by_id_mut(&id) {
+                item.data = ManifestData::Xhtml(new_xhtml);
             }
         }
 

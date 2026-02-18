@@ -6,6 +6,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
 
+use rayon::prelude::*;
+
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
 
@@ -181,31 +183,35 @@ pub fn contiguous_ranges(pages: &[u32]) -> Vec<(u32, u32)> {
     ranges
 }
 
-/// Collect all rendered pages from a temp directory.
+/// Collect all rendered pages from a temp directory (parallel file reads).
 fn collect_rendered_pages(
     dir: &Path,
     num_pages: u32,
 ) -> Result<Vec<(u32, Vec<u8>)>> {
+    let results: Vec<(u32, std::result::Result<Vec<u8>, ConvertError>)> = (1..=num_pages)
+        .into_par_iter()
+        .map(|page_num| {
+            match find_rendered_page(dir, page_num, num_pages) {
+                Some(path) => {
+                    match std::fs::read(&path) {
+                        Ok(data) => (page_num, Ok(data)),
+                        Err(e) => (page_num, Err(ConvertError::Pdf(format!(
+                            "Failed to read rendered page {}: {}", page_num, e
+                        )))),
+                    }
+                }
+                None => {
+                    log::warn!("No rendered image found for page {}", page_num);
+                    (page_num, Ok(Vec::new()))
+                }
+            }
+        })
+        .collect();
+
     let mut pages = Vec::with_capacity(num_pages as usize);
-
-    for page_num in 1..=num_pages {
-        match find_rendered_page(dir, page_num, num_pages) {
-            Some(path) => {
-                let data = std::fs::read(&path).map_err(|e| {
-                    ConvertError::Pdf(format!(
-                        "Failed to read rendered page {}: {}",
-                        page_num, e
-                    ))
-                })?;
-                pages.push((page_num, data));
-            }
-            None => {
-                log::warn!("No rendered image found for page {}", page_num);
-                pages.push((page_num, Vec::new()));
-            }
-        }
+    for (page_num, data_result) in results {
+        pages.push((page_num, data_result?));
     }
-
     Ok(pages)
 }
 

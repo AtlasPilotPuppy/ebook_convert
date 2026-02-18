@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::process;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 use convert_core::book::EbookFormat;
 use convert_core::options::{ConversionOptions, PdfEngine};
@@ -42,20 +42,24 @@ struct Cli {
     max_image_size: Option<String>,
 
     /// JPEG quality for transcoded images (1-100, default 80)
-    #[arg(long, global = true, default_value = "80")]
-    jpeg_quality: u8,
+    #[arg(long, global = true)]
+    jpeg_quality: Option<u8>,
 
     /// Debug pipeline output directory
     #[arg(long, global = true)]
     debug_pipeline: Option<PathBuf>,
 
     /// PDF extraction engine: auto, image-only, text-only (default: auto)
-    #[arg(long, global = true, default_value = "auto")]
-    pdf_engine: String,
+    #[arg(long, global = true)]
+    pdf_engine: Option<String>,
 
     /// PDF rendering DPI (default: 200)
-    #[arg(long, global = true, default_value = "200")]
-    pdf_dpi: u16,
+    #[arg(long, global = true)]
+    pdf_dpi: Option<u16>,
+
+    /// Dump effective merged config as TOML and exit
+    #[arg(long, global = true)]
+    dump_config: bool,
 }
 
 #[derive(Subcommand)]
@@ -79,10 +83,111 @@ enum Commands {
     },
 }
 
+/// Load config from global and project-local TOML files.
+/// Later files override earlier ones. Missing files are silently ignored.
+fn load_config() -> ConversionOptions {
+    let mut opts = ConversionOptions::default();
+
+    // 1. Global config: ~/.config/ebook-convert-rs/config.toml
+    if let Some(config_dir) = dirs::config_dir() {
+        let global_path = config_dir.join("ebook-convert-rs").join("config.toml");
+        if let Ok(contents) = std::fs::read_to_string(&global_path) {
+            match toml::from_str::<ConversionOptions>(&contents) {
+                Ok(parsed) => opts = parsed,
+                Err(e) => {
+                    log::warn!("Failed to parse {}: {}", global_path.display(), e);
+                }
+            }
+        }
+    }
+
+    // 2. Project-local config: ./.ebook-convert-rs.toml
+    let local_path = PathBuf::from(".ebook-convert-rs.toml");
+    if let Ok(contents) = std::fs::read_to_string(&local_path) {
+        match toml::from_str::<ConversionOptions>(&contents) {
+            Ok(parsed) => {
+                merge_config(&mut opts, &parsed);
+            }
+            Err(e) => {
+                log::warn!("Failed to parse {}: {}", local_path.display(), e);
+            }
+        }
+    }
+
+    opts
+}
+
+/// Merge `from` into `base`, overriding only non-default fields.
+/// Since we can't easily detect which fields were set in the TOML,
+/// the project-local config fully overrides the global config.
+fn merge_config(base: &mut ConversionOptions, from: &ConversionOptions) {
+    // We do a simple full override for project-local since serde(default)
+    // fills in defaults for missing fields. A more granular merge would
+    // require Option<T> wrappers for every field. For now, project-local
+    // fully overrides global.
+    *base = from.clone();
+}
+
+/// Apply CLI flags on top of config-loaded options.
+/// Only overrides when the CLI flag was explicitly provided.
+fn apply_cli_overrides(opts: &mut ConversionOptions, cli: &Cli) {
+    let matches = Cli::command().get_matches_from(std::env::args_os());
+
+    if matches.value_source("verbose") == Some(clap::parser::ValueSource::CommandLine) {
+        opts.verbose = cli.verbose;
+    }
+
+    if cli.extra_css.is_some() {
+        opts.extra_css = cli.extra_css.clone();
+    }
+
+    if let Some(ref size_str) = cli.max_image_size {
+        if let Some((w, h)) = parse_size(size_str) {
+            opts.max_image_size = Some((w, h));
+        }
+    }
+
+    if let Some(quality) = cli.jpeg_quality {
+        opts.jpeg_quality = quality.clamp(1, 100);
+    }
+
+    if cli.debug_pipeline.is_some() {
+        opts.debug_pipeline = cli.debug_pipeline.clone();
+    }
+
+    if let Some(ref engine_str) = cli.pdf_engine {
+        opts.pdf_engine = match engine_str.as_str() {
+            "image-only" => PdfEngine::ImageOnly,
+            "text-only" => PdfEngine::TextOnly,
+            _ => PdfEngine::Auto,
+        };
+    }
+
+    if let Some(dpi) = cli.pdf_dpi {
+        opts.pdf_dpi = dpi;
+    }
+}
+
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let cli = Cli::parse();
+
+    // Handle --dump-config
+    if cli.dump_config {
+        let mut opts = load_config();
+        apply_cli_overrides(&mut opts, &cli);
+        match toml::to_string_pretty(&opts) {
+            Ok(s) => {
+                println!("{}", s);
+                process::exit(0);
+            }
+            Err(e) => {
+                eprintln!("Error serializing config: {}", e);
+                process::exit(1);
+            }
+        }
+    }
 
     let result = match &cli.command {
         Some(Commands::Convert {
@@ -150,28 +255,11 @@ fn run_conversion(
         output_format
     );
 
-    // Build options
-    let mut options = ConversionOptions::default();
-    options.verbose = cli.verbose;
+    // Build options: config files → CLI overrides
+    let mut options = load_config();
+    apply_cli_overrides(&mut options, cli);
     options.input_format = Some(input_format);
     options.output_format = Some(output_format);
-    options.extra_css = cli.extra_css.clone();
-    options.debug_pipeline = cli.debug_pipeline.clone();
-
-    options.jpeg_quality = cli.jpeg_quality.clamp(1, 100);
-
-    if let Some(ref size_str) = cli.max_image_size {
-        if let Some((w, h)) = parse_size(size_str) {
-            options.max_image_size = Some((w, h));
-        }
-    }
-
-    options.pdf_engine = match cli.pdf_engine.as_str() {
-        "image-only" => PdfEngine::ImageOnly,
-        "text-only" => PdfEngine::TextOnly,
-        _ => PdfEngine::Auto,
-    };
-    options.pdf_dpi = cli.pdf_dpi;
 
     // Get plugins
     let input_plugin = get_input_plugin(input_format)?;

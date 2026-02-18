@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use rayon::prelude::*;
+
 use convert_core::book::{BookDocument, ManifestData};
 use convert_core::error::Result;
 use convert_core::options::ConversionOptions;
@@ -51,45 +53,54 @@ fn remove_adobe_margins(book: &mut BookDocument) {
 fn remove_fake_margins(book: &mut BookDocument) {
     let margin_left_re = Regex::new(r"margin-left\s*:\s*([^;]+)").unwrap();
     let margin_right_re = Regex::new(r"margin-right\s*:\s*([^;]+)").unwrap();
+    let element_re = Regex::new(r#"<(?:p|div)\s[^>]*style\s*=\s*"([^"]*)"[^>]*>"#).unwrap();
 
-    // First pass: collect margin statistics across all XHTML items
+    // Collect XHTML content
+    let xhtml_items: Vec<(String, String)> = book
+        .manifest
+        .iter()
+        .filter(|item| item.is_xhtml())
+        .filter_map(|item| item.data.as_xhtml().map(|x| (item.id.clone(), x.to_string())))
+        .collect();
+
+    // First pass: collect margin statistics in parallel
+    let stats: Vec<(HashMap<String, u32>, HashMap<String, u32>, u32)> = xhtml_items
+        .par_iter()
+        .map(|(_, xhtml)| {
+            let mut left_counts: HashMap<String, u32> = HashMap::new();
+            let mut right_counts: HashMap<String, u32> = HashMap::new();
+            let mut total = 0u32;
+
+            for cap in element_re.captures_iter(xhtml) {
+                let style = &cap[1];
+                total += 1;
+
+                if let Some(m) = margin_left_re.captures(style) {
+                    let val = m[1].trim().to_string();
+                    if val != "0" && val != "0px" && val != "0pt" && val != "0em" {
+                        *left_counts.entry(val).or_insert(0) += 1;
+                    }
+                }
+                if let Some(m) = margin_right_re.captures(style) {
+                    let val = m[1].trim().to_string();
+                    if val != "0" && val != "0px" && val != "0pt" && val != "0em" {
+                        *right_counts.entry(val).or_insert(0) += 1;
+                    }
+                }
+            }
+            (left_counts, right_counts, total)
+        })
+        .collect();
+
+    // Merge stats
     let mut left_counts: HashMap<String, u32> = HashMap::new();
     let mut right_counts: HashMap<String, u32> = HashMap::new();
     let mut total_styled = 0u32;
 
-    let xhtml_ids: Vec<String> = book
-        .manifest
-        .iter()
-        .filter(|item| item.is_xhtml())
-        .map(|item| item.id.clone())
-        .collect();
-
-    // Regex for <p> and <div> with style attributes
-    let element_re = Regex::new(r#"<(?:p|div)\s[^>]*style\s*=\s*"([^"]*)"[^>]*>"#).unwrap();
-
-    for id in &xhtml_ids {
-        let xhtml = match book.manifest.by_id(id).and_then(|i| i.data.as_xhtml()) {
-            Some(x) => x.to_string(),
-            None => continue,
-        };
-
-        for cap in element_re.captures_iter(&xhtml) {
-            let style = &cap[1];
-            total_styled += 1;
-
-            if let Some(m) = margin_left_re.captures(style) {
-                let val = m[1].trim().to_string();
-                if val != "0" && val != "0px" && val != "0pt" && val != "0em" {
-                    *left_counts.entry(val).or_insert(0) += 1;
-                }
-            }
-            if let Some(m) = margin_right_re.captures(style) {
-                let val = m[1].trim().to_string();
-                if val != "0" && val != "0px" && val != "0pt" && val != "0em" {
-                    *right_counts.entry(val).or_insert(0) += 1;
-                }
-            }
-        }
+    for (lc, rc, t) in stats {
+        total_styled += t;
+        for (k, v) in lc { *left_counts.entry(k).or_insert(0) += v; }
+        for (k, v) in rc { *right_counts.entry(k).or_insert(0) += v; }
     }
 
     if total_styled == 0 {
@@ -98,7 +109,6 @@ fn remove_fake_margins(book: &mut BookDocument) {
 
     let threshold = (total_styled as f64 * 0.95) as u32;
 
-    // Find dominant margins that appear in >95% of styled elements
     let dominant_left: Option<String> = left_counts
         .iter()
         .find(|(_, &count)| count >= threshold)
@@ -114,37 +124,34 @@ fn remove_fake_margins(book: &mut BookDocument) {
     }
 
     let empty_style = Regex::new(r#"\s*style\s*=\s*"\s*""#).unwrap();
+    let left_re = dominant_left.as_ref().and_then(|d| {
+        Regex::new(&format!(r"margin-left\s*:\s*{}\s*;?", regex::escape(d))).ok()
+    });
+    let right_re = dominant_right.as_ref().and_then(|d| {
+        Regex::new(&format!(r"margin-right\s*:\s*{}\s*;?", regex::escape(d))).ok()
+    });
 
-    // Second pass: remove dominant margins
-    for id in &xhtml_ids {
-        let xhtml = match book.manifest.by_id(id).and_then(|i| i.data.as_xhtml()) {
-            Some(x) => x.to_string(),
-            None => continue,
-        };
+    // Second pass: remove dominant margins in parallel
+    let results: Vec<(String, String)> = xhtml_items.into_par_iter()
+        .filter_map(|(id, xhtml)| {
+            let mut new_xhtml = xhtml.clone();
 
-        let mut new_xhtml = xhtml.clone();
-
-        if let Some(ref dominant) = dominant_left {
-            let pattern = format!(r"margin-left\s*:\s*{}\s*;?", regex::escape(dominant));
-            if let Ok(re) = Regex::new(&pattern) {
+            if let Some(ref re) = left_re {
                 new_xhtml = re.replace_all(&new_xhtml, "").to_string();
             }
-        }
-
-        if let Some(ref dominant) = dominant_right {
-            let pattern = format!(r"margin-right\s*:\s*{}\s*;?", regex::escape(dominant));
-            if let Ok(re) = Regex::new(&pattern) {
+            if let Some(ref re) = right_re {
                 new_xhtml = re.replace_all(&new_xhtml, "").to_string();
             }
-        }
+            new_xhtml = empty_style.replace_all(&new_xhtml, "").to_string();
 
-        // Clean up empty style attributes
-        new_xhtml = empty_style.replace_all(&new_xhtml, "").to_string();
+            if new_xhtml != xhtml { Some((id, new_xhtml)) } else { None }
+        })
+        .collect();
 
-        if new_xhtml != xhtml {
-            if let Some(item) = book.manifest.by_id_mut(id) {
-                item.data = ManifestData::Xhtml(new_xhtml);
-            }
+    // Apply back sequentially
+    for (id, new_xhtml) in results {
+        if let Some(item) = book.manifest.by_id_mut(&id) {
+            item.data = ManifestData::Xhtml(new_xhtml);
         }
     }
 

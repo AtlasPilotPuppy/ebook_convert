@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use rayon::prelude::*;
+
 use convert_core::book::BookDocument;
 use convert_core::error::Result;
 use convert_core::options::ConversionOptions;
@@ -42,34 +44,45 @@ impl Transform for ManifestTrimmer {
             }
         }
 
-        // Scan XHTML content for referenced resources (CSS, images, etc.)
+        // Scan XHTML and CSS content for referenced resources in parallel
         let href_re = Regex::new(r#"(?:src|href)\s*=\s*["']([^"']+)["']"#).unwrap();
-        for item in book.manifest.iter() {
-            if !item.is_xhtml() {
-                continue;
-            }
-            if let Some(xhtml) = item.data.as_xhtml() {
-                for cap in href_re.captures_iter(xhtml) {
-                    let href = &cap[1];
-                    if let Some(ref_item) = book.manifest.by_href(href) {
-                        referenced.insert(ref_item.id.clone());
+        let url_re = Regex::new(r#"url\s*\(\s*['"]?([^'")\s]+)['"]?\s*\)"#).unwrap();
+
+        // Collect content for parallel scanning
+        let scan_items: Vec<(bool, String)> = book.manifest.iter()
+            .filter_map(|item| {
+                if item.is_xhtml() {
+                    item.data.as_xhtml().map(|x| (true, x.to_string()))
+                } else if item.is_css() {
+                    item.data.as_css().map(|c| (false, c.to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Extract hrefs in parallel
+        let found_hrefs: Vec<HashSet<String>> = scan_items.par_iter()
+            .map(|(is_xhtml, content)| {
+                let mut hrefs = HashSet::new();
+                if *is_xhtml {
+                    for cap in href_re.captures_iter(content) {
+                        hrefs.insert(cap[1].to_string());
+                    }
+                } else {
+                    for cap in url_re.captures_iter(content) {
+                        hrefs.insert(cap[1].to_string());
                     }
                 }
-            }
-        }
+                hrefs
+            })
+            .collect();
 
-        // Also scan CSS for url() references
-        let url_re = Regex::new(r#"url\s*\(\s*['"]?([^'")\s]+)['"]?\s*\)"#).unwrap();
-        for item in book.manifest.iter() {
-            if !item.is_css() {
-                continue;
-            }
-            if let Some(css) = item.data.as_css() {
-                for cap in url_re.captures_iter(css) {
-                    let href = &cap[1];
-                    if let Some(ref_item) = book.manifest.by_href(href) {
-                        referenced.insert(ref_item.id.clone());
-                    }
+        // Resolve hrefs to item IDs
+        for hrefs in found_hrefs {
+            for href in hrefs {
+                if let Some(ref_item) = book.manifest.by_href(&href) {
+                    referenced.insert(ref_item.id.clone());
                 }
             }
         }

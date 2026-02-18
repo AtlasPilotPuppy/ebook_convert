@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use rayon::prelude::*;
+
 use convert_core::book::{BookDocument, ManifestData};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
@@ -22,7 +24,36 @@ pub fn write_epub(book: &BookDocument, output_path: &Path, options: &ConversionO
     zip.add_file("META-INF/container.xml", container_xml.as_bytes())
         .map_err(|e| ConvertError::Epub(format!("Failed to write container.xml: {}", e)))?;
 
-    // 3. Content files from manifest
+    // 3. Pre-resolve Lazy items in parallel, then write all content to zip sequentially
+    // Collect items that need lazy loading
+    let lazy_items: Vec<(String, std::path::PathBuf)> = book.manifest.iter()
+        .filter_map(|item| {
+            if let ManifestData::Lazy(ref file_path) = item.data {
+                Some((item.href.clone(), file_path.clone()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Read lazy files in parallel
+    let lazy_data: Vec<(String, std::result::Result<Vec<u8>, ConvertError>)> = lazy_items
+        .into_par_iter()
+        .map(|(href, file_path)| {
+            let result = std::fs::read(&file_path).map_err(|e| {
+                ConvertError::Epub(format!("Failed to read lazy content {}: {}", file_path.display(), e))
+            });
+            (href, result)
+        })
+        .collect();
+
+    // Build href→data lookup for lazy items
+    let mut lazy_map: std::collections::HashMap<String, Vec<u8>> = std::collections::HashMap::new();
+    for (href, result) in lazy_data {
+        lazy_map.insert(href, result?);
+    }
+
+    // Write all content to zip sequentially
     for item in book.manifest.iter() {
         let path = format!("OEBPS/{}", item.href);
         let is_precompressed = is_precompressed_media(&item.media_type);
@@ -36,7 +67,6 @@ pub fn write_epub(book: &BookDocument, output_path: &Path, options: &ConversionO
                     .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
             }
             ManifestData::Binary(b) => {
-                // Store already-compressed formats (PNG, JPEG, GIF) without re-compressing
                 if is_precompressed {
                     zip.add_stored(&path, b)
                         .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
@@ -45,20 +75,15 @@ pub fn write_epub(book: &BookDocument, output_path: &Path, options: &ConversionO
                         .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
                 }
             }
-            ManifestData::Lazy(file_path) => {
-                let data = std::fs::read(file_path).map_err(|e| {
-                    ConvertError::Epub(format!(
-                        "Failed to read lazy content {}: {}",
-                        file_path.display(),
-                        e
-                    ))
-                })?;
-                if is_precompressed {
-                    zip.add_stored(&path, &data)
-                        .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
-                } else {
-                    zip.add_file(&path, &data)
-                        .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
+            ManifestData::Lazy(_) => {
+                if let Some(data) = lazy_map.get(&item.href) {
+                    if is_precompressed {
+                        zip.add_stored(&path, data)
+                            .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
+                    } else {
+                        zip.add_file(&path, data)
+                            .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
+                    }
                 }
             }
             ManifestData::Empty => continue,
