@@ -26,6 +26,15 @@ pub enum ConvertError {
     #[error("DOCX error: {0}")]
     Docx(String),
 
+    #[error("FB2 error: {0}")]
+    Fb2(String),
+
+    #[error("RTF error: {0}")]
+    Rtf(String),
+
+    #[error("ODT error: {0}")]
+    Odt(String),
+
     #[error("Invalid manifest: {0}")]
     Manifest(String),
 

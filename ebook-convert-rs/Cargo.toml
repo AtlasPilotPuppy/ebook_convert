@@ -10,6 +10,9 @@ members = [
     "crates/convert-input-mobi",
     "crates/convert-input-txt",
     "crates/convert-input-docx",
+    "crates/convert-input-fb2",
+    "crates/convert-input-rtf",
+    "crates/convert-input-odt",
     "crates/convert-input-pdf",
     "crates/convert-output-epub",
     "crates/convert-output-pdf",
@@ -77,3 +80,4 @@ regex = "1"
 once_cell = "1"
 base64 = "0.22"
 mobi = "0.8"
+rtf-parser = "0.4"

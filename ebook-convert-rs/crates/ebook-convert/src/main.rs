@@ -219,7 +219,9 @@ fn get_input_plugin(format: EbookFormat) -> Result<Box<dyn InputPlugin>> {
             Ok(Box::new(convert_input_mobi::MobiInputPlugin))
         }
         EbookFormat::Docx => Ok(Box::new(convert_input_docx::DocxInputPlugin)),
-        _ => anyhow::bail!("Unsupported input format: {}", format),
+        EbookFormat::Fb2 => Ok(Box::new(convert_input_fb2::Fb2InputPlugin)),
+        EbookFormat::Rtf => Ok(Box::new(convert_input_rtf::RtfInputPlugin)),
+        EbookFormat::Odt => Ok(Box::new(convert_input_odt::OdtInputPlugin)),
     }
 }
 

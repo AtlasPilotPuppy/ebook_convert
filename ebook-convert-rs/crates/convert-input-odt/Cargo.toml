@@ -1,0 +1,13 @@
+[package]
+name = "convert-input-odt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+convert-core = { path = "../convert-core" }
+convert-utils = { path = "../convert-utils" }
+quick-xml.workspace = true
+zip.workspace = true
+log.workspace = true
+regex.workspace = true

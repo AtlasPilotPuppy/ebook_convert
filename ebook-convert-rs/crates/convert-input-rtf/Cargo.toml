@@ -1,0 +1,12 @@
+[package]
+name = "convert-input-rtf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+convert-core = { path = "../convert-core" }
+convert-utils = { path = "../convert-utils" }
+rtf-parser.workspace = true
+log.workspace = true
+regex.workspace = true
