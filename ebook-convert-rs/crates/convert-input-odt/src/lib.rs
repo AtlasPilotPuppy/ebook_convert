@@ -6,9 +6,7 @@
 use std::io::Read;
 use std::path::Path;
 
-use convert_core::book::{
-    BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry,
-};
+use convert_core::book::{BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
 use convert_core::plugin::InputPlugin;
@@ -89,7 +87,7 @@ fn parse_odt(path: &Path) -> Result<BookDocument> {
                 "webp" => "image/webp",
                 _ => "image/jpeg",
             };
-            let id = img_name.replace('/', "_").replace('.', "_");
+            let id = img_name.replace(['/', '.'], "_");
             let href = format!("images/{}", img_name.trim_start_matches("Pictures/"));
             let item = ManifestItem::new(&id, &href, mime, ManifestData::Binary(data));
             book.manifest.add(item);
@@ -109,7 +107,11 @@ fn parse_odt(path: &Path) -> Result<BookDocument> {
     }
 
     let title = book.metadata.title().unwrap_or("Untitled").to_string();
-    let lang = book.metadata.get_first_value("language").unwrap_or("en").to_string();
+    let lang = book
+        .metadata
+        .get_first_value("language")
+        .unwrap_or("en")
+        .to_string();
     let xhtml = convert_utils::xml::xhtml11_document(&title, &lang, Some("style.css"), &html);
 
     let content_item = ManifestItem::new(
@@ -129,13 +131,22 @@ h1, h2, h3, h4, h5, h6 { text-indent: 0; margin: 1em 0 0.5em; }
 img { max-width: 100%; height: auto; }
 .center { text-align: center; }
 .right { text-align: right; }"#;
-    let css_item = ManifestItem::new("style", "style.css", "text/css", ManifestData::Css(css.to_string()));
+    let css_item = ManifestItem::new(
+        "style",
+        "style.css",
+        "text/css",
+        ManifestData::Css(css.to_string()),
+    );
     book.manifest.add(css_item);
 
     // Build TOC from headings
     build_toc(&html, &mut book);
 
-    let image_count = book.manifest.iter().filter(|i| i.media_type.starts_with("image/")).count();
+    let image_count = book
+        .manifest
+        .iter()
+        .filter(|i| i.media_type.starts_with("image/"))
+        .count();
     log::info!("Parsed ODT: \"{}\" with {} images", title, image_count);
 
     Ok(book)
@@ -368,7 +379,10 @@ fn convert_content_xml(xml: &str, heading_styles: &[String]) -> String {
                         in_text_body = false;
                     }
                     "text:p" | "text:h" if in_para => {
-                        html.push_str(&format!("<{}>{}</{}>\n", current_tag, para_buf, current_tag));
+                        html.push_str(&format!(
+                            "<{}>{}</{}>\n",
+                            current_tag, para_buf, current_tag
+                        ));
                         in_para = false;
                         para_buf.clear();
                     }
@@ -429,15 +443,27 @@ fn detect_span_format(style_name: &str) -> SpanFormat {
 }
 
 fn apply_span_open(buf: &mut String, fmt: &SpanFormat) {
-    if fmt.bold { buf.push_str("<strong>"); }
-    if fmt.italic { buf.push_str("<em>"); }
-    if fmt.underline { buf.push_str("<u>"); }
+    if fmt.bold {
+        buf.push_str("<strong>");
+    }
+    if fmt.italic {
+        buf.push_str("<em>");
+    }
+    if fmt.underline {
+        buf.push_str("<u>");
+    }
 }
 
 fn apply_span_close(buf: &mut String, fmt: &SpanFormat) {
-    if fmt.underline { buf.push_str("</u>"); }
-    if fmt.italic { buf.push_str("</em>"); }
-    if fmt.bold { buf.push_str("</strong>"); }
+    if fmt.underline {
+        buf.push_str("</u>");
+    }
+    if fmt.italic {
+        buf.push_str("</em>");
+    }
+    if fmt.bold {
+        buf.push_str("</strong>");
+    }
 }
 
 fn extract_heading_level(style_name: &str) -> Option<u8> {
@@ -480,17 +506,29 @@ fn build_toc(html: &str, book: &mut BookDocument) {
     }
 }
 
-fn read_zip_string(archive: &mut zip::ZipArchive<std::fs::File>, name: &str) -> std::result::Result<String, String> {
-    let mut file = archive.by_name(name).map_err(|e| format!("{}: {}", name, e))?;
+fn read_zip_string(
+    archive: &mut zip::ZipArchive<std::fs::File>,
+    name: &str,
+) -> std::result::Result<String, String> {
+    let mut file = archive
+        .by_name(name)
+        .map_err(|e| format!("{}: {}", name, e))?;
     let mut s = String::new();
-    file.read_to_string(&mut s).map_err(|e| format!("{}: {}", name, e))?;
+    file.read_to_string(&mut s)
+        .map_err(|e| format!("{}: {}", name, e))?;
     Ok(s)
 }
 
-fn read_zip_binary(archive: &mut zip::ZipArchive<std::fs::File>, name: &str) -> std::result::Result<Vec<u8>, String> {
-    let mut file = archive.by_name(name).map_err(|e| format!("{}: {}", name, e))?;
+fn read_zip_binary(
+    archive: &mut zip::ZipArchive<std::fs::File>,
+    name: &str,
+) -> std::result::Result<Vec<u8>, String> {
+    let mut file = archive
+        .by_name(name)
+        .map_err(|e| format!("{}: {}", name, e))?;
     let mut data = Vec::new();
-    file.read_to_end(&mut data).map_err(|e| format!("{}: {}", name, e))?;
+    file.read_to_end(&mut data)
+        .map_err(|e| format!("{}: {}", name, e))?;
     Ok(data)
 }
 

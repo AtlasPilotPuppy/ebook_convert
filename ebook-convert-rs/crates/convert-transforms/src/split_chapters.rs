@@ -24,7 +24,9 @@ impl Transform for SplitChapters {
 
     fn apply(&self, book: &mut BookDocument, _options: &ConversionOptions) -> Result<()> {
         // Collect spine items that are candidates for splitting
-        let candidates: Vec<(String, String, String)> = book.spine.iter()
+        let candidates: Vec<(String, String, String)> = book
+            .spine
+            .iter()
             .filter_map(|s| {
                 book.manifest.by_id(&s.idref).and_then(|item| {
                     if item.is_xhtml() {
@@ -57,7 +59,6 @@ impl Transform for SplitChapters {
 
         // Apply splits sequentially (modifies spine, manifest, TOC)
         for (idref, original_href, chunks) in split_results {
-
             log::info!(
                 "Splitting '{}' into {} chapters",
                 original_href,
@@ -65,11 +66,7 @@ impl Transform for SplitChapters {
             );
 
             // Find spine position of this item
-            let spine_pos = book
-                .spine
-                .iter()
-                .position(|s| s.idref == *idref)
-                .unwrap();
+            let spine_pos = book.spine.iter().position(|s| s.idref == *idref).unwrap();
 
             // Remove original from spine (we'll replace it)
             book.spine.remove(&idref);
@@ -141,13 +138,19 @@ fn split_at_headings(xhtml: &str) -> Vec<ContentChunk> {
     let body_re = Regex::new(r"(?is)<body[^>]*>(.*)</body>").unwrap();
     let body_content = match body_re.captures(xhtml) {
         Some(cap) => cap[1].to_string(),
-        None => return vec![ContentChunk { title: String::new(), body: xhtml.to_string() }],
+        None => {
+            return vec![ContentChunk {
+                title: String::new(),
+                body: xhtml.to_string(),
+            }]
+        }
     };
 
     // Find split points at h1/h2 tags
     let heading_re = Regex::new(r"(?i)<h[12][^>]*>").unwrap();
     // Also split at page break divs (from MOBI mbp:pagebreak conversion)
-    let pagebreak_re = Regex::new(r#"(?i)<div[^>]*class\s*=\s*["']mbp_pagebreak["'][^>]*>\s*</div>"#).unwrap();
+    let pagebreak_re =
+        Regex::new(r#"(?i)<div[^>]*class\s*=\s*["']mbp_pagebreak["'][^>]*>\s*</div>"#).unwrap();
 
     let title_re = Regex::new(r"(?is)<h[12][^>]*>(.*?)</h[12]>").unwrap();
     let tag_re = Regex::new(r"<[^>]+>").unwrap();
@@ -223,11 +226,8 @@ fn split_at_headings(xhtml: &str) -> Vec<ContentChunk> {
 
 /// Wrap body HTML in a minimal XHTML document.
 fn wrap_body_xhtml(body: &str, title: &str) -> String {
-    let title_escaped = convert_utils::xml::escape_xml_text(if title.is_empty() {
-        "Chapter"
-    } else {
-        title
-    });
+    let title_escaped =
+        convert_utils::xml::escape_xml_text(if title.is_empty() { "Chapter" } else { title });
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
@@ -267,11 +267,7 @@ fn update_toc_hrefs(
     }
 }
 
-fn update_toc_entry(
-    entry: &mut TocEntry,
-    original_href: &str,
-    title_to_href: &[(String, String)],
-) {
+fn update_toc_entry(entry: &mut TocEntry, original_href: &str, title_to_href: &[(String, String)]) {
     // Strip fragment from href for comparison
     let entry_href_base = entry.href.split('#').next().unwrap_or(&entry.href);
     if entry_href_base == original_href {

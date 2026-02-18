@@ -127,9 +127,7 @@ impl Metadata {
 
     /// Iterate over all (term, items) pairs.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &[MetadataItem])> {
-        self.items
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_slice()))
+        self.items.iter().map(|(k, v)| (k.as_str(), v.as_slice()))
     }
 
     /// Check if a term exists.

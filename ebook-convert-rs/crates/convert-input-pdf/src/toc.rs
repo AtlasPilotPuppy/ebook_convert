@@ -62,10 +62,7 @@ fn build_page_number_toc(
 
     for page_num in 1..=total_pages {
         if let Some(href) = page_href_map.get(&page_num) {
-            entries.push(TocEntry::new(
-                format!("Page {}", page_num),
-                href,
-            ));
+            entries.push(TocEntry::new(format!("Page {}", page_num), href));
         }
     }
 
@@ -78,9 +75,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn make_page_map(n: u32) -> HashMap<u32, String> {
-        (1..=n)
-            .map(|i| (i, format!("page{}.xhtml", i)))
-            .collect()
+        (1..=n).map(|i| (i, format!("page{}.xhtml", i))).collect()
     }
 
     #[test]
@@ -121,13 +116,11 @@ mod tests {
 
     #[test]
     fn test_fallback_to_page_numbers() {
-        let outline = vec![
-            OutlineItem {
-                title: "Only One".to_string(),
-                page: 1,
-                children: vec![],
-            },
-        ];
+        let outline = vec![OutlineItem {
+            title: "Only One".to_string(),
+            page: 1,
+            children: vec![],
+        }];
 
         let page_map = make_page_map(5);
         // min_entries=3, but outline only has 1 item → fallback

@@ -11,7 +11,11 @@ use convert_utils::archive::ZipBuilder;
 use convert_utils::xml::XmlBuilder;
 
 /// Write a BookDocument as an EPUB file.
-pub fn write_epub(book: &BookDocument, output_path: &Path, options: &ConversionOptions) -> Result<()> {
+pub fn write_epub(
+    book: &BookDocument,
+    output_path: &Path,
+    options: &ConversionOptions,
+) -> Result<()> {
     let mut zip = ZipBuilder::new(output_path)
         .map_err(|e| ConvertError::Epub(format!("Failed to create EPUB: {}", e)))?;
 
@@ -26,7 +30,9 @@ pub fn write_epub(book: &BookDocument, output_path: &Path, options: &ConversionO
 
     // 3. Pre-resolve Lazy items in parallel, then write all content to zip sequentially
     // Collect items that need lazy loading
-    let lazy_items: Vec<(String, std::path::PathBuf)> = book.manifest.iter()
+    let lazy_items: Vec<(String, std::path::PathBuf)> = book
+        .manifest
+        .iter()
         .filter_map(|item| {
             if let ManifestData::Lazy(ref file_path) = item.data {
                 Some((item.href.clone(), file_path.clone()))
@@ -41,7 +47,11 @@ pub fn write_epub(book: &BookDocument, output_path: &Path, options: &ConversionO
         .into_par_iter()
         .map(|(href, file_path)| {
             let result = std::fs::read(&file_path).map_err(|e| {
-                ConvertError::Epub(format!("Failed to read lazy content {}: {}", file_path.display(), e))
+                ConvertError::Epub(format!(
+                    "Failed to read lazy content {}: {}",
+                    file_path.display(),
+                    e
+                ))
             });
             (href, result)
         })
@@ -68,21 +78,25 @@ pub fn write_epub(book: &BookDocument, output_path: &Path, options: &ConversionO
             }
             ManifestData::Binary(b) => {
                 if is_precompressed {
-                    zip.add_stored(&path, b)
-                        .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
+                    zip.add_stored(&path, b).map_err(|e| {
+                        ConvertError::Epub(format!("Failed to write {}: {}", path, e))
+                    })?;
                 } else {
-                    zip.add_file(&path, b)
-                        .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
+                    zip.add_file(&path, b).map_err(|e| {
+                        ConvertError::Epub(format!("Failed to write {}: {}", path, e))
+                    })?;
                 }
             }
             ManifestData::Lazy(_) => {
                 if let Some(data) = lazy_map.get(&item.href) {
                     if is_precompressed {
-                        zip.add_stored(&path, data)
-                            .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
+                        zip.add_stored(&path, data).map_err(|e| {
+                            ConvertError::Epub(format!("Failed to write {}: {}", path, e))
+                        })?;
                     } else {
-                        zip.add_file(&path, data)
-                            .map_err(|e| ConvertError::Epub(format!("Failed to write {}: {}", path, e)))?;
+                        zip.add_file(&path, data).map_err(|e| {
+                            ConvertError::Epub(format!("Failed to write {}: {}", path, e))
+                        })?;
                     }
                 }
             }
@@ -111,9 +125,16 @@ pub fn write_epub(book: &BookDocument, output_path: &Path, options: &ConversionO
 fn is_precompressed_media(media_type: &str) -> bool {
     matches!(
         media_type,
-        "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/avif"
-            | "audio/mpeg" | "audio/ogg" | "video/mp4"
-            | "application/x-font-opentype" | "application/x-font-truetype"
+        "image/png"
+            | "image/jpeg"
+            | "image/gif"
+            | "image/webp"
+            | "image/avif"
+            | "audio/mpeg"
+            | "audio/ogg"
+            | "video/mp4"
+            | "application/x-font-opentype"
+            | "application/x-font-truetype"
     )
 }
 
@@ -214,10 +235,7 @@ fn generate_opf(book: &BookDocument, _options: &ConversionOptions) -> String {
         if spine_item.linear {
             xml.empty_tag("itemref", &[("idref", &spine_item.idref)]);
         } else {
-            xml.empty_tag(
-                "itemref",
-                &[("idref", &spine_item.idref), ("linear", "no")],
-            );
+            xml.empty_tag("itemref", &[("idref", &spine_item.idref), ("linear", "no")]);
         }
     }
     xml.close_tag("spine");
@@ -263,14 +281,8 @@ fn generate_ncx(book: &BookDocument) -> String {
     xml.open_tag("head", &[]);
     xml.empty_tag("meta", &[("name", "dtb:uid"), ("content", uid)]);
     xml.empty_tag("meta", &[("name", "dtb:depth"), ("content", "1")]);
-    xml.empty_tag(
-        "meta",
-        &[("name", "dtb:totalPageCount"), ("content", "0")],
-    );
-    xml.empty_tag(
-        "meta",
-        &[("name", "dtb:maxPageNumber"), ("content", "0")],
-    );
+    xml.empty_tag("meta", &[("name", "dtb:totalPageCount"), ("content", "0")]);
+    xml.empty_tag("meta", &[("name", "dtb:maxPageNumber"), ("content", "0")]);
     xml.close_tag("head");
 
     // Doc title
@@ -310,7 +322,7 @@ fn write_ncx_nav_point(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use convert_core::book::{BookDocument, ManifestItem, ManifestData, TocEntry};
+    use convert_core::book::{BookDocument, ManifestData, ManifestItem, TocEntry};
 
     fn make_test_book() -> BookDocument {
         let mut book = BookDocument::new();
@@ -320,7 +332,12 @@ mod tests {
         book.metadata.set("language", "en");
 
         let xhtml = "<html><body><p>Hello</p></body></html>".to_string();
-        let item = ManifestItem::new("ch1", "chapter1.xhtml", "application/xhtml+xml", ManifestData::Xhtml(xhtml));
+        let item = ManifestItem::new(
+            "ch1",
+            "chapter1.xhtml",
+            "application/xhtml+xml",
+            ManifestData::Xhtml(xhtml),
+        );
         book.manifest.add(item);
         book.spine.push("ch1", true);
         book.toc.add(TocEntry::new("Chapter 1", "chapter1.xhtml"));

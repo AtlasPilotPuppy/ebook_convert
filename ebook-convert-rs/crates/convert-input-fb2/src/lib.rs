@@ -5,9 +5,7 @@
 
 use std::path::Path;
 
-use convert_core::book::{
-    BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry,
-};
+use convert_core::book::{BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
 use convert_core::plugin::InputPlugin;
@@ -76,10 +74,9 @@ fn parse_fb2(path: &Path) -> Result<BookDocument> {
                             if key == "l:href" || key == "href" {
                                 let href = String::from_utf8_lossy(&attr.value).to_string();
                                 let id = href.trim_start_matches('#');
-                                state.html.push_str(&format!(
-                                    r#"<img src="images/{}" alt=""/>"#,
-                                    id
-                                ));
+                                state
+                                    .html
+                                    .push_str(&format!(r#"<img src="images/{}" alt=""/>"#, id));
                             }
                         }
                     }
@@ -88,7 +85,10 @@ fn parse_fb2(path: &Path) -> Result<BookDocument> {
                             let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
                             if key == "l:href" || key == "href" {
                                 let href = String::from_utf8_lossy(&attr.value).to_string();
-                                state.html.push_str(&format!(r#"<a href="{}">"#, convert_utils::xml::escape_xml_attr(&href)));
+                                state.html.push_str(&format!(
+                                    r#"<a href="{}">"#,
+                                    convert_utils::xml::escape_xml_attr(&href)
+                                ));
                                 state.in_link = true;
                             }
                         }
@@ -145,13 +145,15 @@ fn parse_fb2(path: &Path) -> Result<BookDocument> {
                     }
                     "binary" => {
                         // Decode base64 image
-                        if let (Some(id), Some(mime)) = (state.binary_id.take(), state.binary_mime.take()) {
+                        if let (Some(id), Some(mime)) =
+                            (state.binary_id.take(), state.binary_mime.take())
+                        {
                             let b64 = state.text_buf.trim().replace(['\n', '\r', ' '], "");
                             if let Ok(data) = base64::Engine::decode(
                                 &base64::engine::general_purpose::STANDARD,
                                 &b64,
                             ) {
-                                    let href = format!("images/{}", id);
+                                let href = format!("images/{}", id);
                                 let item = ManifestItem::new(
                                     &id,
                                     &href,
@@ -168,8 +170,13 @@ fn parse_fb2(path: &Path) -> Result<BookDocument> {
                         state.in_title = false;
                         let title_text = state.title_buf.trim().to_string();
                         if !title_text.is_empty() {
-                            let level = state.section_depth.min(6).max(1);
-                            state.html.push_str(&format!("<h{}>{}</h{}>", level, convert_utils::xml::escape_xml_text(&title_text), level));
+                            let level = state.section_depth.clamp(1, 6);
+                            state.html.push_str(&format!(
+                                "<h{}>{}</h{}>",
+                                level,
+                                convert_utils::xml::escape_xml_text(&title_text),
+                                level
+                            ));
                             state.section_titles.push(title_text);
                         }
                     }
@@ -263,7 +270,9 @@ fn parse_fb2(path: &Path) -> Result<BookDocument> {
                         state.text_buf.clear();
                     }
                     "id" => {
-                        if is_in_path(&state.path, "document-info") && book.metadata.get_first_value("identifier").is_none() {
+                        if is_in_path(&state.path, "document-info")
+                            && book.metadata.get_first_value("identifier").is_none()
+                        {
                             book.metadata.set("identifier", state.text_buf.trim());
                         }
                         state.text_buf.clear();
@@ -280,7 +289,9 @@ fn parse_fb2(path: &Path) -> Result<BookDocument> {
                 } else if state.in_title {
                     state.title_buf.push_str(&text);
                 } else if state.in_para || state.in_link {
-                    state.html.push_str(&convert_utils::xml::escape_xml_text(&text));
+                    state
+                        .html
+                        .push_str(&convert_utils::xml::escape_xml_text(&text));
                 } else if is_in_path(&state.path, "description") {
                     // Metadata text content
                     state.text_buf.push_str(&text);
@@ -297,7 +308,11 @@ fn parse_fb2(path: &Path) -> Result<BookDocument> {
 
     // Build the XHTML document
     let title = book.metadata.title().unwrap_or("Untitled").to_string();
-    let lang = book.metadata.get_first_value("language").unwrap_or("en").to_string();
+    let lang = book
+        .metadata
+        .get_first_value("language")
+        .unwrap_or("en")
+        .to_string();
     let xhtml = convert_utils::xml::xhtml11_document(&title, &lang, Some("style.css"), &state.html);
 
     let content_item = ManifestItem::new(
@@ -322,7 +337,12 @@ img { max-width: 100%; height: auto; }
 .text-author { text-align: right; font-style: italic; }
 blockquote { margin: 1em 2em; }
 code { font-family: monospace; }"#;
-    let css_item = ManifestItem::new("style", "style.css", "text/css", ManifestData::Css(css.to_string()));
+    let css_item = ManifestItem::new(
+        "style",
+        "style.css",
+        "text/css",
+        ManifestData::Css(css.to_string()),
+    );
     book.manifest.add(css_item);
 
     // Build TOC from section titles
@@ -333,7 +353,11 @@ code { font-family: monospace; }"#;
         book.toc.add(TocEntry::new(&title, "content.xhtml"));
     }
 
-    let image_count = book.manifest.iter().filter(|i| i.media_type.starts_with("image/")).count();
+    let image_count = book
+        .manifest
+        .iter()
+        .filter(|i| i.media_type.starts_with("image/"))
+        .count();
     log::info!(
         "Parsed FB2: \"{}\" with {} images, {} sections",
         title,
@@ -382,7 +406,13 @@ mod tests {
 
     #[test]
     fn test_is_in_path() {
-        let path = vec!["FictionBook".into(), "description".into(), "title-info".into(), "author".into(), "first-name".into()];
+        let path = vec![
+            "FictionBook".into(),
+            "description".into(),
+            "title-info".into(),
+            "author".into(),
+            "first-name".into(),
+        ];
         assert!(is_in_path(&path, "title-info/author"));
         assert!(is_in_path(&path, "description"));
         assert!(!is_in_path(&path, "publish-info"));
@@ -419,9 +449,19 @@ mod tests {
 
         let result = parse_fb2(&path).unwrap();
         assert_eq!(result.metadata.title().unwrap(), "War and Peace");
-        assert!(result.metadata.get_first_value("language").unwrap().contains("en"));
+        assert!(result
+            .metadata
+            .get_first_value("language")
+            .unwrap()
+            .contains("en"));
 
-        let xhtml = result.manifest.by_id("content").unwrap().data.as_xhtml().unwrap();
+        let xhtml = result
+            .manifest
+            .by_id("content")
+            .unwrap()
+            .data
+            .as_xhtml()
+            .unwrap();
         assert!(xhtml.contains("Genoa and Lucca"));
         assert!(xhtml.contains("<h1>Part One</h1>"));
 
@@ -455,7 +495,13 @@ mod tests {
         std::fs::write(&path, fb2).unwrap();
 
         let result = parse_fb2(&path).unwrap();
-        let xhtml = result.manifest.by_id("content").unwrap().data.as_xhtml().unwrap();
+        let xhtml = result
+            .manifest
+            .by_id("content")
+            .unwrap()
+            .data
+            .as_xhtml()
+            .unwrap();
         assert!(xhtml.contains("<strong>bold</strong>"));
         assert!(xhtml.contains("<em>italic</em>"));
 
@@ -466,7 +512,8 @@ mod tests {
     fn test_parse_fb2_with_binary() {
         // Tiny 1x1 PNG as base64
         let png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-        let fb2 = format!(r##"<?xml version="1.0" encoding="UTF-8"?>
+        let fb2 = format!(
+            r##"<?xml version="1.0" encoding="UTF-8"?>
 <FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
   <description>
     <title-info>
@@ -481,7 +528,9 @@ mod tests {
     </section>
   </body>
   <binary id="cover" content-type="image/png">{}</binary>
-</FictionBook>"##, png_b64);
+</FictionBook>"##,
+            png_b64
+        );
 
         let dir = std::env::temp_dir().join("test_fb2_img");
         std::fs::create_dir_all(&dir).unwrap();
@@ -493,7 +542,13 @@ mod tests {
         assert_eq!(cover.media_type, "image/png");
         assert!(!cover.data.as_binary().unwrap().is_empty());
 
-        let xhtml = result.manifest.by_id("content").unwrap().data.as_xhtml().unwrap();
+        let xhtml = result
+            .manifest
+            .by_id("content")
+            .unwrap()
+            .data
+            .as_xhtml()
+            .unwrap();
         assert!(xhtml.contains(r#"<img src="images/cover""#));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -530,8 +585,14 @@ mod tests {
 
         let result = parse_fb2(&path).unwrap();
         assert_eq!(result.metadata.title().unwrap(), "Foundation");
-        assert_eq!(result.metadata.get_first_value("publisher").unwrap(), "Gnome Press");
-        assert_eq!(result.metadata.get_first_value("identifier").unwrap(), "978-0553293357");
+        assert_eq!(
+            result.metadata.get_first_value("publisher").unwrap(),
+            "Gnome Press"
+        );
+        assert_eq!(
+            result.metadata.get_first_value("identifier").unwrap(),
+            "978-0553293357"
+        );
         assert_eq!(result.metadata.get_first_value("date").unwrap(), "1951");
 
         let _ = std::fs::remove_dir_all(&dir);

@@ -20,7 +20,10 @@ impl Transform for DetectStructure {
     fn apply(&self, book: &mut BookDocument, options: &ConversionOptions) -> Result<()> {
         // If TOC already has entries (e.g., from input plugin), skip detection
         if !book.toc.entries.is_empty() {
-            log::info!("TOC already has {} entries, skipping structure detection", book.toc.entries.len());
+            log::info!(
+                "TOC already has {} entries, skipping structure detection",
+                book.toc.entries.len()
+            );
             return Ok(());
         }
 
@@ -30,13 +33,20 @@ impl Transform for DetectStructure {
             .and_then(|r| Regex::new(r).ok());
 
         // Collect XHTML items for parallel heading extraction
-        let xhtml_items: Vec<(String, String)> = book.manifest.iter()
+        let xhtml_items: Vec<(String, String)> = book
+            .manifest
+            .iter()
             .filter(|item| item.is_xhtml())
-            .filter_map(|item| item.data.as_xhtml().map(|x| (item.href.clone(), x.to_string())))
+            .filter_map(|item| {
+                item.data
+                    .as_xhtml()
+                    .map(|x| (item.href.clone(), x.to_string()))
+            })
             .collect();
 
         // Extract headings in parallel
-        let all_headings: Vec<(String, Vec<(u8, String)>)> = xhtml_items.into_par_iter()
+        let all_headings: Vec<(String, Vec<(u8, String)>)> = xhtml_items
+            .into_par_iter()
             .map(|(href, xhtml)| {
                 let headings = extract_headings(&xhtml, chapter_re.as_ref());
                 (href, headings)
@@ -112,7 +122,10 @@ fn extract_headings(xhtml: &str, chapter_re: Option<&Regex>) -> Vec<(u8, String)
 
     // Sort by position in document
     headings.sort_by_key(|(offset, _, _)| *offset);
-    headings.into_iter().map(|(_, level, title)| (level, title)).collect()
+    headings
+        .into_iter()
+        .map(|(_, level, title)| (level, title))
+        .collect()
 }
 
 #[cfg(test)]

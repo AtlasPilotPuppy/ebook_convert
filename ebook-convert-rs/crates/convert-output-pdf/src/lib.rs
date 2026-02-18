@@ -217,7 +217,9 @@ fn write_pdf(book: &BookDocument, output_path: &Path) -> Result<()> {
     let para_re = Regex::new(r"(?is)<p[^>]*>(.*?)</p>").unwrap();
 
     // Collect spine XHTMLs
-    let spine_xhtmls: Vec<&str> = book.spine.iter()
+    let spine_xhtmls: Vec<&str> = book
+        .spine
+        .iter()
         .filter_map(|si| book.manifest.by_id(&si.idref))
         .filter_map(|item| match &item.data {
             ManifestData::Xhtml(ref x) => Some(x.as_str()),
@@ -226,23 +228,35 @@ fn write_pdf(book: &BookDocument, output_path: &Path) -> Result<()> {
         .collect();
 
     // Extract headings and paragraphs in parallel
-    let extracted: Vec<(Vec<(u32, String)>, Vec<String>)> = spine_xhtmls.par_iter()
+    #[allow(clippy::type_complexity)]
+    let extracted: Vec<(Vec<(u32, String)>, Vec<String>)> = spine_xhtmls
+        .par_iter()
         .map(|xhtml| {
             let body = extract_body(xhtml);
-            let headings: Vec<(u32, String)> = heading_re.captures_iter(&body)
+            let headings: Vec<(u32, String)> = heading_re
+                .captures_iter(&body)
                 .filter_map(|cap| {
                     let level: u32 = cap[1].parse().unwrap_or(3);
                     let text = tag_re.replace_all(&cap[2], "").to_string();
                     let text = decode_entities(&text);
-                    if text.trim().is_empty() { None } else { Some((level, text.trim().to_string())) }
+                    if text.trim().is_empty() {
+                        None
+                    } else {
+                        Some((level, text.trim().to_string()))
+                    }
                 })
                 .collect();
-            let paragraphs: Vec<String> = para_re.captures_iter(&body)
+            let paragraphs: Vec<String> = para_re
+                .captures_iter(&body)
                 .filter_map(|cap| {
                     let text = tag_re.replace_all(&cap[1], " ").to_string();
                     let text = decode_entities(&text);
                     let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
-                    if text.is_empty() { None } else { Some(text) }
+                    if text.is_empty() {
+                        None
+                    } else {
+                        Some(text)
+                    }
                 })
                 .collect();
             (headings, paragraphs)
@@ -333,8 +347,7 @@ mod tests {
         book.metadata.set_title("Test PDF");
         book.metadata.add("creator", "Author");
 
-        let xhtml =
-            "<html><body><h1>Chapter 1</h1><p>Hello world.</p></body></html>".to_string();
+        let xhtml = "<html><body><h1>Chapter 1</h1><p>Hello world.</p></body></html>".to_string();
         let item = ManifestItem::new(
             "ch1",
             "ch1.xhtml",

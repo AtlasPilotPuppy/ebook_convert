@@ -67,8 +67,7 @@ fn write_mobi(book: &BookDocument, output_path: &Path) -> Result<()> {
     }
 
     // +1 for FLIS, +1 for FCIS, +1 for EOF record
-    let total_records =
-        1 + text_record_count + image_records.len() + 3; // header + text + images + FLIS + FCIS + EOF
+    let total_records = 1 + text_record_count + image_records.len() + 3; // header + text + images + FLIS + FCIS + EOF
 
     // Build PDB file
     let mut pdb = Vec::new();
@@ -117,7 +116,7 @@ fn write_mobi(book: &BookDocument, output_path: &Path) -> Result<()> {
     for (i, rec) in all_records.iter().enumerate() {
         pdb.extend_from_slice(&(offset as u32).to_be_bytes());
         pdb.push(0u8); // attributes
-        // unique ID (3 bytes)
+                       // unique ID (3 bytes)
         pdb.push(((i >> 16) & 0xFF) as u8);
         pdb.push(((i >> 8) & 0xFF) as u8);
         pdb.push((i & 0xFF) as u8);
@@ -164,7 +163,9 @@ fn build_mobi_html(book: &BookDocument) -> String {
     let tag_re = Regex::new(r"(?i)</?(!DOCTYPE|html|head|meta|link|title|xml)[^>]*>").unwrap();
 
     // Collect spine XHTMLs
-    let spine_xhtmls: Vec<&str> = book.spine.iter()
+    let spine_xhtmls: Vec<&str> = book
+        .spine
+        .iter()
         .filter_map(|si| book.manifest.by_id(&si.idref))
         .filter_map(|item| match &item.data {
             ManifestData::Xhtml(ref x) => Some(x.as_str()),
@@ -173,7 +174,8 @@ fn build_mobi_html(book: &BookDocument) -> String {
         .collect();
 
     // Extract and clean bodies in parallel
-    let bodies: Vec<String> = spine_xhtmls.par_iter()
+    let bodies: Vec<String> = spine_xhtmls
+        .par_iter()
         .map(|xhtml| {
             let body = extract_body(xhtml);
             tag_re.replace_all(&body, "").to_string()
@@ -182,9 +184,9 @@ fn build_mobi_html(book: &BookDocument) -> String {
 
     let mut html = String::new();
     html.push_str("<html><head><title>");
-    html.push_str(
-        &convert_utils::xml::escape_xml_text(book.metadata.title().unwrap_or("Untitled Document")),
-    );
+    html.push_str(&convert_utils::xml::escape_xml_text(
+        book.metadata.title().unwrap_or("Untitled Document"),
+    ));
     html.push_str("</title></head><body>\n");
 
     for body in &bodies {
@@ -266,7 +268,7 @@ fn build_exth(book: &BookDocument) -> Vec<u8> {
     }
 
     exth.extend_from_slice(b"EXTH"); // magic
-    // Compute total length: 12 (header) + sum of (8 + data_len padded)
+                                     // Compute total length: 12 (header) + sum of (8 + data_len padded)
     let mut record_bytes = Vec::new();
     for (rec_type, data) in &records {
         let rec_len = 8 + data.len() as u32;
@@ -305,15 +307,14 @@ fn build_mobi_header_record(
     rec.extend_from_slice(&(TEXT_RECORD_SIZE as u16).to_be_bytes()); // record size (2 bytes)
     rec.extend_from_slice(&0u16.to_be_bytes()); // encryption type: 0 = none (2 bytes)
     rec.extend_from_slice(&0u16.to_be_bytes()); // unused (2 bytes)
-    // Total PalmDOC header: 2+2+4+2+2+2+2 = 16 bytes ✓
+                                                // Total PalmDOC header: 2+2+4+2+2+2+2 = 16 bytes ✓
 
     // -- MOBI Header (starts at offset 16) --
     let title_bytes = title.as_bytes();
 
     // Build EXTH first to know its size
     let exth_data = build_exth(book);
-    let has_exth = !book.metadata.authors().is_empty()
-        || book.metadata.title().is_some();
+    let has_exth = !book.metadata.authors().is_empty() || book.metadata.title().is_some();
 
     // MOBI header is 232 bytes (from "MOBI" to end of header)
     let mobi_header_len: u32 = 232;
@@ -496,10 +497,7 @@ mod tests {
         // MOBI magic at bytes 16-19
         assert_eq!(&rec[16..20], b"MOBI");
         // File version at bytes 36-39 should be 6 (MOBI6)
-        assert_eq!(
-            u32::from_be_bytes([rec[36], rec[37], rec[38], rec[39]]),
-            6
-        );
+        assert_eq!(u32::from_be_bytes([rec[36], rec[37], rec[38], rec[39]]), 6);
         // Min version at bytes 104-107 should be 6
         assert_eq!(
             u32::from_be_bytes([rec[104], rec[105], rec[106], rec[107]]),
@@ -527,8 +525,7 @@ mod tests {
         book.metadata.set_title("Test MOBI");
         book.metadata.add("creator", "Author");
 
-        let xhtml =
-            "<html><body><h1>Chapter 1</h1><p>Hello world.</p></body></html>".to_string();
+        let xhtml = "<html><body><h1>Chapter 1</h1><p>Hello world.</p></body></html>".to_string();
         let item = ManifestItem::new(
             "ch1",
             "ch1.xhtml",

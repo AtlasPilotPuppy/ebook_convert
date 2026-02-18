@@ -54,8 +54,7 @@ impl Transform for CleanGuide {
                 }
             }
             if let Some(href) = cover_href {
-                book.guide
-                    .add(GuideRef::new("cover", "Cover", href));
+                book.guide.add(GuideRef::new("cover", "Cover", href));
                 log::info!("Detected cover from MS/Adobe metadata");
             }
         }
@@ -84,10 +83,7 @@ impl Transform for CleanGuide {
         }
 
         if !to_remove.is_empty() {
-            log::info!(
-                "Removed {} non-standard guide references",
-                to_remove.len()
-            );
+            log::info!("Removed {} non-standard guide references", to_remove.len());
         }
 
         Ok(())
@@ -132,11 +128,8 @@ mod tests {
         let mut book = BookDocument::new();
         book.guide
             .add(GuideRef::new("cover", "Cover", "cover.xhtml"));
-        book.guide.add(GuideRef::new(
-            "custom-nonsense",
-            "Nonsense",
-            "foo.xhtml",
-        ));
+        book.guide
+            .add(GuideRef::new("custom-nonsense", "Nonsense", "foo.xhtml"));
         book.guide.add(GuideRef::new(
             "ms-coverimage-standard",
             "MS Cover",
@@ -158,8 +151,7 @@ mod tests {
             .add(GuideRef::new("cover", "Cover", "cover.xhtml"));
         book.guide
             .add(GuideRef::new("toc", "Table of Contents", "toc.xhtml"));
-        book.guide
-            .add(GuideRef::new("text", "Start", "ch1.xhtml"));
+        book.guide.add(GuideRef::new("text", "Start", "ch1.xhtml"));
 
         let opts = ConversionOptions::default();
         CleanGuide.apply(&mut book, &opts).unwrap();

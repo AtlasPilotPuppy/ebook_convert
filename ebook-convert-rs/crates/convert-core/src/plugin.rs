@@ -18,11 +18,7 @@ pub trait InputPlugin: Send + Sync {
     fn supported_formats(&self) -> &[EbookFormat];
 
     /// Convert an input file to a BookDocument.
-    fn convert(
-        &self,
-        input_path: &Path,
-        options: &ConversionOptions,
-    ) -> Result<BookDocument>;
+    fn convert(&self, input_path: &Path, options: &ConversionOptions) -> Result<BookDocument>;
 
     /// Called after the book has been parsed to allow format-specific postprocessing.
     fn postprocess(&self, _book: &mut BookDocument, _options: &ConversionOptions) -> Result<()> {
@@ -64,11 +60,7 @@ pub trait Transform: Send + Sync {
     fn name(&self) -> &str;
 
     /// Apply this transform to the book document.
-    fn apply(
-        &self,
-        book: &mut BookDocument,
-        options: &ConversionOptions,
-    ) -> Result<()>;
+    fn apply(&self, book: &mut BookDocument, options: &ConversionOptions) -> Result<()>;
 
     /// Whether this transform should run given the current options.
     /// Default: always run.

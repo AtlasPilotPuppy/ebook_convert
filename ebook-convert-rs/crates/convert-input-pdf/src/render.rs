@@ -41,9 +41,9 @@ pub fn render_all_pages(
         .map_err(|e| ConvertError::Pdf(format!("Failed to create temp dir: {}", e)))?;
 
     let prefix = tmp_dir.path().join("page");
-    let prefix_str = prefix.to_str().ok_or_else(|| {
-        ConvertError::Pdf("Invalid temp path".to_string())
-    })?;
+    let prefix_str = prefix
+        .to_str()
+        .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
 
     let dpi = options.pdf_dpi.to_string();
     let quality = options.jpeg_quality.to_string();
@@ -67,10 +67,7 @@ pub fn render_all_pages(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ConvertError::Pdf(format!(
-            "pdftoppm failed: {}",
-            stderr
-        )));
+        return Err(ConvertError::Pdf(format!("pdftoppm failed: {}", stderr)));
     }
 
     collect_rendered_pages(tmp_dir.path(), num_pages)
@@ -107,9 +104,9 @@ pub fn render_page_ranges(
             .map_err(|e| ConvertError::Pdf(format!("Failed to create temp dir: {}", e)))?;
 
         let prefix = tmp_dir.path().join("page");
-        let prefix_str = prefix.to_str().ok_or_else(|| {
-            ConvertError::Pdf("Invalid temp path".to_string())
-        })?;
+        let prefix_str = prefix
+            .to_str()
+            .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
 
         let output = Command::new("pdftoppm")
             .arg("-jpeg")
@@ -184,28 +181,27 @@ pub fn contiguous_ranges(pages: &[u32]) -> Vec<(u32, u32)> {
 }
 
 /// Collect all rendered pages from a temp directory (parallel file reads).
-fn collect_rendered_pages(
-    dir: &Path,
-    num_pages: u32,
-) -> Result<Vec<(u32, Vec<u8>)>> {
+fn collect_rendered_pages(dir: &Path, num_pages: u32) -> Result<Vec<(u32, Vec<u8>)>> {
     let results: Vec<(u32, std::result::Result<Vec<u8>, ConvertError>)> = (1..=num_pages)
         .into_par_iter()
-        .map(|page_num| {
-            match find_rendered_page(dir, page_num, num_pages) {
-                Some(path) => {
-                    match std::fs::read(&path) {
-                        Ok(data) => (page_num, Ok(data)),
-                        Err(e) => (page_num, Err(ConvertError::Pdf(format!(
-                            "Failed to read rendered page {}: {}", page_num, e
-                        )))),
-                    }
-                }
+        .map(
+            |page_num| match find_rendered_page(dir, page_num, num_pages) {
+                Some(path) => match std::fs::read(&path) {
+                    Ok(data) => (page_num, Ok(data)),
+                    Err(e) => (
+                        page_num,
+                        Err(ConvertError::Pdf(format!(
+                            "Failed to read rendered page {}: {}",
+                            page_num, e
+                        ))),
+                    ),
+                },
                 None => {
                     log::warn!("No rendered image found for page {}", page_num);
                     (page_num, Ok(Vec::new()))
                 }
-            }
-        })
+            },
+        )
         .collect();
 
     let mut pages = Vec::with_capacity(num_pages as usize);
@@ -275,10 +271,7 @@ mod tests {
 
     #[test]
     fn test_contiguous_ranges_all_contiguous() {
-        assert_eq!(
-            contiguous_ranges(&[1, 2, 3, 4, 5]),
-            vec![(1, 5)]
-        );
+        assert_eq!(contiguous_ranges(&[1, 2, 3, 4, 5]), vec![(1, 5)]);
     }
 
     #[test]
@@ -291,10 +284,7 @@ mod tests {
 
     #[test]
     fn test_contiguous_ranges_unsorted() {
-        assert_eq!(
-            contiguous_ranges(&[5, 3, 1, 2, 4]),
-            vec![(1, 5)]
-        );
+        assert_eq!(contiguous_ranges(&[5, 3, 1, 2, 4]), vec![(1, 5)]);
     }
 
     #[test]

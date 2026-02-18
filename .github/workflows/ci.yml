@@ -8,29 +8,75 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  test:
-    name: Test
+  fmt:
+    name: Format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry & build
-        uses: actions/cache@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ebook-convert-rs/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('ebook-convert-rs/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          components: rustfmt
 
-      - name: Install poppler-utils (for PDF input tests)
+      - name: Check formatting
+        working-directory: ebook-convert-rs
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    needs: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "ebook-convert-rs -> ebook-convert-rs/target"
+
+      - name: Install poppler-utils
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Clippy
+        working-directory: ebook-convert-rs
+        run: cargo clippy --lib --bins --tests -- -D warnings
+
+  test:
+    name: Test (${{ matrix.os }})
+    needs: clippy
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Configure git line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf input
+
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "ebook-convert-rs -> ebook-convert-rs/target"
+          cache-on-failure: true
+          shared-key: "test-${{ matrix.os }}"
+
+      - name: Install poppler-utils (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+
+      - name: Install poppler (Windows)
+        if: runner.os == 'Windows'
+        run: choco install poppler -y
 
       - name: Build
         working-directory: ebook-convert-rs
@@ -40,45 +86,38 @@ jobs:
         working-directory: ebook-convert-rs
         run: cargo test --lib --bins
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
+  build-release:
+    name: Release build (${{ matrix.os }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
+      - name: Configure git line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf input
+
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry & build
-        uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: "ebook-convert-rs -> ebook-convert-rs/target"
+          shared-key: "release-${{ matrix.os }}"
+
+      - name: Build release binary
+        working-directory: ebook-convert-rs
+        run: cargo build --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ebook-convert-rs-${{ matrix.os }}
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ebook-convert-rs/target
-          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('ebook-convert-rs/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-clippy-
-
-      - name: Install poppler-utils
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils
-
-      - name: Clippy
-        working-directory: ebook-convert-rs
-        run: cargo clippy --lib --bins --tests -- -D warnings
-
-  fmt:
-    name: Format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      - name: Check formatting
-        working-directory: ebook-convert-rs
-        run: cargo fmt --all -- --check
+            ebook-convert-rs/target/release/ebook-convert-rs
+            ebook-convert-rs/target/release/ebook-convert-rs.exe
+          if-no-files-found: ignore
+          retention-days: 30

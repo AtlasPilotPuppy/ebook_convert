@@ -179,10 +179,7 @@ fn ensure_css_links(xhtml: &str, css_hrefs: &[String]) -> String {
     let mut result = xhtml.to_string();
 
     for href in css_hrefs {
-        let link_patterns = [
-            format!("href=\"{}\"", href),
-            format!("href='{}'", href),
-        ];
+        let link_patterns = [format!("href=\"{}\"", href), format!("href='{}'", href)];
 
         let already_linked = link_patterns
             .iter()
@@ -220,8 +217,10 @@ mod tests {
         );
         book.manifest.add(css_item);
 
-        let mut opts = ConversionOptions::default();
-        opts.extra_css = Some("p { color: red; }".to_string());
+        let opts = ConversionOptions {
+            extra_css: Some("p { color: red; }".to_string()),
+            ..Default::default()
+        };
 
         CssFlattener.apply(&mut book, &opts).unwrap();
 
@@ -234,8 +233,10 @@ mod tests {
     #[test]
     fn test_css_flattener_creates_css_if_missing() {
         let mut book = BookDocument::new();
-        let mut opts = ConversionOptions::default();
-        opts.extra_css = Some("body { font-size: 14px; }".to_string());
+        let opts = ConversionOptions {
+            extra_css: Some("body { font-size: 14px; }".to_string()),
+            ..Default::default()
+        };
 
         CssFlattener.apply(&mut book, &opts).unwrap();
 
@@ -262,13 +263,11 @@ mod tests {
 
     #[test]
     fn test_ensure_css_links_no_duplicate() {
-        let xhtml = "<html><head><link rel=\"stylesheet\" href=\"style.css\"/></head><body></body></html>";
+        let xhtml =
+            "<html><head><link rel=\"stylesheet\" href=\"style.css\"/></head><body></body></html>";
         let hrefs = vec!["style.css".to_string()];
         let result = ensure_css_links(xhtml, &hrefs);
         // Should not add a duplicate
-        assert_eq!(
-            result.matches("style.css").count(),
-            1
-        );
+        assert_eq!(result.matches("style.css").count(), 1);
     }
 }

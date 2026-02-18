@@ -9,9 +9,7 @@ use std::path::Path;
 use lopdf::Document;
 use rayon::prelude::*;
 
-use convert_core::book::{
-    BookDocument, ManifestData, ManifestItem, Metadata, TocEntry,
-};
+use convert_core::book::{BookDocument, ManifestData, ManifestItem, Metadata, TocEntry};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::{ConversionOptions, PdfEngine};
 
@@ -51,8 +49,12 @@ pub fn extract_pdf(path: &Path, options: &ConversionOptions) -> Result<BookDocum
 
     // Add a default stylesheet
     let css = generate_default_css();
-    let css_item =
-        ManifestItem::new("stylesheet", "style.css", "text/css", ManifestData::Css(css));
+    let css_item = ManifestItem::new(
+        "stylesheet",
+        "style.css",
+        "text/css",
+        ManifestData::Css(css),
+    );
     book.manifest.add(css_item);
 
     Ok(book)
@@ -111,10 +113,8 @@ fn extract_image_only(
         book.manifest.add(item);
         book.spine.push(&page_item_id, true);
 
-        book.toc.add(TocEntry::new(
-            format!("Page {}", page_num),
-            &page_href,
-        ));
+        book.toc
+            .add(TocEntry::new(format!("Page {}", page_num), &page_href));
     }
 
     Ok(())
@@ -150,8 +150,14 @@ fn extract_hybrid(
         })
         .collect();
 
-    let text_count = classifications.iter().filter(|(_, t)| *t == PageType::Text).count() as u32;
-    let scanned_count = classifications.iter().filter(|(_, t)| *t == PageType::Scanned).count() as u32;
+    let text_count = classifications
+        .iter()
+        .filter(|(_, t)| *t == PageType::Text)
+        .count() as u32;
+    let scanned_count = classifications
+        .iter()
+        .filter(|(_, t)| *t == PageType::Scanned)
+        .count() as u32;
 
     log::info!(
         "Classification: {} text, {} scanned, {} total pages",
@@ -201,7 +207,11 @@ fn extract_hybrid(
         .par_iter()
         .filter_map(|(page_num, src, path)| {
             std::fs::read(path).ok().and_then(|data| {
-                if data.is_empty() { None } else { Some((*page_num, src.clone(), data)) }
+                if data.is_empty() {
+                    None
+                } else {
+                    Some((*page_num, src.clone(), data))
+                }
             })
         })
         .collect();
@@ -213,7 +223,11 @@ fn extract_hybrid(
     for (page_num, src, data) in loaded_images {
         img_counter += 1;
         let epub_href = format!("images/page{}_{}.jpg", page_num, img_counter);
-        let mime = if src.ends_with(".png") { "image/png" } else { "image/jpeg" };
+        let mime = if src.ends_with(".png") {
+            "image/png"
+        } else {
+            "image/jpeg"
+        };
         let img_id = format!("img_{}_{}", page_num, img_counter);
         let item = ManifestItem::new(&img_id, &epub_href, mime, ManifestData::Binary(data));
         book.manifest.add(item);
@@ -238,7 +252,12 @@ fn extract_hybrid(
     // Add scanned images to manifest and build href lookup
     let mut scanned_href_map: HashMap<u32, String> = HashMap::new();
     for (page_num, img_id, img_href, jpeg_data) in scanned_images {
-        let item = ManifestItem::new(&img_id, &img_href, "image/jpeg", ManifestData::Binary(jpeg_data));
+        let item = ManifestItem::new(
+            &img_id,
+            &img_href,
+            "image/jpeg",
+            ManifestData::Binary(jpeg_data),
+        );
         book.manifest.add(item);
         scanned_href_map.insert(page_num, img_href);
     }
@@ -258,17 +277,16 @@ fn extract_hybrid(
                         None => build_placeholder_xhtml(*page_num),
                     }
                 }
-                PageType::Scanned => {
-                    match scanned_href_map.get(page_num) {
-                        Some(img_href) => build_scanned_page_xhtml(*page_num, img_href),
-                        None => build_placeholder_xhtml(*page_num),
-                    }
-                }
+                PageType::Scanned => match scanned_href_map.get(page_num) {
+                    Some(img_href) => build_scanned_page_xhtml(*page_num, img_href),
+                    None => build_placeholder_xhtml(*page_num),
+                },
                 PageType::ImageOnly => {
                     let pdf_page = html_pages.iter().find(|p| p.number == *page_num);
                     let image_hrefs: Vec<String> = pdf_page
                         .map(|p| {
-                            p.images.iter()
+                            p.images
+                                .iter()
                                 .filter_map(|img| image_map.get(&img.src).cloned())
                                 .collect()
                         })

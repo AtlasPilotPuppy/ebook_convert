@@ -16,7 +16,11 @@ use convert_core::pipeline::PipelineBuilder;
 use convert_core::plugin::{InputPlugin, OutputPlugin, Transform};
 
 #[derive(Parser)]
-#[command(name = "ebook-convert-rs", version, about = "Fast ebook format converter")]
+#[command(
+    name = "ebook-convert-rs",
+    version,
+    about = "Fast ebook format converter"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -195,7 +199,13 @@ fn main() {
             output,
             from,
             to,
-        }) => run_conversion(input.clone(), output.clone(), from.clone(), to.clone(), &cli),
+        }) => run_conversion(
+            input.clone(),
+            output.clone(),
+            from.clone(),
+            to.clone(),
+            &cli,
+        ),
         None => {
             // Legacy mode: positional args
             match (&cli.input, &cli.output) {
@@ -297,12 +307,8 @@ fn get_input_plugin(format: EbookFormat) -> Result<Box<dyn InputPlugin>> {
     match format {
         EbookFormat::Pdf => Ok(Box::new(convert_input_pdf::PdfInputPlugin)),
         EbookFormat::Epub => Ok(Box::new(convert_input_epub::EpubInputPlugin)),
-        EbookFormat::Html | EbookFormat::Xhtml => {
-            Ok(Box::new(convert_input_html::HtmlInputPlugin))
-        }
-        EbookFormat::Txt | EbookFormat::Markdown => {
-            Ok(Box::new(convert_input_txt::TxtInputPlugin))
-        }
+        EbookFormat::Html | EbookFormat::Xhtml => Ok(Box::new(convert_input_html::HtmlInputPlugin)),
+        EbookFormat::Txt | EbookFormat::Markdown => Ok(Box::new(convert_input_txt::TxtInputPlugin)),
         EbookFormat::Mobi | EbookFormat::Azw | EbookFormat::Azw3 => {
             Ok(Box::new(convert_input_mobi::MobiInputPlugin))
         }

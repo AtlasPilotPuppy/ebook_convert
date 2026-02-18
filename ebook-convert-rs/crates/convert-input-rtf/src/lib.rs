@@ -5,9 +5,7 @@
 
 use std::path::Path;
 
-use convert_core::book::{
-    BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry,
-};
+use convert_core::book::{BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
 use convert_core::plugin::InputPlugin;
@@ -148,7 +146,10 @@ fn blocks_to_html(doc: &rtf_parser::RtfDocument) -> String {
             formatted = format!("<sub>{}</sub>", formatted);
         }
         if painter.smallcaps {
-            formatted = format!(r#"<span style="font-variant: small-caps">{}</span>"#, formatted);
+            formatted = format!(
+                r#"<span style="font-variant: small-caps">{}</span>"#,
+                formatted
+            );
         }
 
         html.push_str(&formatted);
@@ -200,7 +201,13 @@ mod tests {
         let result = parse_rtf(&path).unwrap();
         assert_eq!(result.metadata.title().unwrap(), "test");
 
-        let xhtml = result.manifest.by_id("content").unwrap().data.as_xhtml().unwrap();
+        let xhtml = result
+            .manifest
+            .by_id("content")
+            .unwrap()
+            .data
+            .as_xhtml()
+            .unwrap();
         assert!(xhtml.contains("Hello"));
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -218,7 +225,13 @@ mod tests {
         std::fs::write(&path, rtf).unwrap();
 
         let result = parse_rtf(&path).unwrap();
-        let xhtml = result.manifest.by_id("content").unwrap().data.as_xhtml().unwrap();
+        let xhtml = result
+            .manifest
+            .by_id("content")
+            .unwrap()
+            .data
+            .as_xhtml()
+            .unwrap();
         assert!(xhtml.contains("<strong>"));
         assert!(xhtml.contains("<em>"));
 

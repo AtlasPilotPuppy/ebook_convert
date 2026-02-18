@@ -2,9 +2,7 @@
 
 use std::path::Path;
 
-use convert_core::book::{
-    BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry,
-};
+use convert_core::book::{BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
 use convert_core::plugin::InputPlugin;
@@ -23,8 +21,9 @@ impl InputPlugin for TxtInputPlugin {
     fn convert(&self, input_path: &Path, _options: &ConversionOptions) -> Result<BookDocument> {
         log::info!("Reading text: {}", input_path.display());
 
-        let content = std::fs::read_to_string(input_path)
-            .map_err(|e| ConvertError::Other(format!("Cannot read {}: {}", input_path.display(), e)))?;
+        let content = std::fs::read_to_string(input_path).map_err(|e| {
+            ConvertError::Other(format!("Cannot read {}: {}", input_path.display(), e))
+        })?;
 
         let ext = input_path
             .extension()
@@ -60,8 +59,14 @@ impl InputPlugin for TxtInputPlugin {
         book.toc.add(TocEntry::new(&title, "content.xhtml"));
 
         // Add default stylesheet
-        let css = "body { font-family: serif; line-height: 1.6; margin: 1em; }\np { margin: 0.5em 0; }";
-        let css_item = ManifestItem::new("style", "style.css", "text/css", ManifestData::Css(css.to_string()));
+        let css =
+            "body { font-family: serif; line-height: 1.6; margin: 1em; }\np { margin: 0.5em 0; }";
+        let css_item = ManifestItem::new(
+            "style",
+            "style.css",
+            "text/css",
+            ManifestData::Css(css.to_string()),
+        );
         book.manifest.add(css_item);
 
         Ok(book)

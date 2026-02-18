@@ -49,7 +49,9 @@ impl Transform for ManifestTrimmer {
         let url_re = Regex::new(r#"url\s*\(\s*['"]?([^'")\s]+)['"]?\s*\)"#).unwrap();
 
         // Collect content for parallel scanning
-        let scan_items: Vec<(bool, String)> = book.manifest.iter()
+        let scan_items: Vec<(bool, String)> = book
+            .manifest
+            .iter()
             .filter_map(|item| {
                 if item.is_xhtml() {
                     item.data.as_xhtml().map(|x| (true, x.to_string()))
@@ -62,7 +64,8 @@ impl Transform for ManifestTrimmer {
             .collect();
 
         // Extract hrefs in parallel
-        let found_hrefs: Vec<HashSet<String>> = scan_items.par_iter()
+        let found_hrefs: Vec<HashSet<String>> = scan_items
+            .par_iter()
             .map(|(is_xhtml, content)| {
                 let mut hrefs = HashSet::new();
                 if *is_xhtml {
@@ -126,11 +129,21 @@ mod tests {
         book.spine.push("ch1", true);
 
         // Referenced via XHTML href
-        let css = ManifestItem::new("style", "style.css", "text/css", ManifestData::Css("body {}".to_string()));
+        let css = ManifestItem::new(
+            "style",
+            "style.css",
+            "text/css",
+            ManifestData::Css("body {}".to_string()),
+        );
         book.manifest.add(css);
 
         // Unreferenced item
-        let orphan = ManifestItem::new("orphan", "orphan.png", "image/png", ManifestData::Binary(vec![0]));
+        let orphan = ManifestItem::new(
+            "orphan",
+            "orphan.png",
+            "image/png",
+            ManifestData::Binary(vec![0]),
+        );
         book.manifest.add(orphan);
 
         assert_eq!(book.manifest.len(), 3);

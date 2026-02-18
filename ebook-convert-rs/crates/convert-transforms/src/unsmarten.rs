@@ -12,14 +12,14 @@ pub struct UnsmartenPunctuation;
 
 /// Character replacement pairs: (from, to).
 const REPLACEMENTS: &[(&str, &str)] = &[
-    ("\u{201c}", "\""), // left double quote
-    ("\u{201d}", "\""), // right double quote
-    ("\u{201e}", "\""), // double low-9 quote
-    ("\u{2018}", "'"),  // left single quote
-    ("\u{2019}", "'"),  // right single quote
-    ("\u{201a}", "'"),  // single low-9 quote
-    ("\u{2013}", "-"),  // en-dash
-    ("\u{2014}", "--"), // em-dash
+    ("\u{201c}", "\""),  // left double quote
+    ("\u{201d}", "\""),  // right double quote
+    ("\u{201e}", "\""),  // double low-9 quote
+    ("\u{2018}", "'"),   // left single quote
+    ("\u{2019}", "'"),   // right single quote
+    ("\u{201a}", "'"),   // single low-9 quote
+    ("\u{2013}", "-"),   // en-dash
+    ("\u{2014}", "--"),  // em-dash
     ("\u{2026}", "..."), // ellipsis
 ];
 
@@ -34,13 +34,20 @@ impl Transform for UnsmartenPunctuation {
 
     fn apply(&self, book: &mut BookDocument, _options: &ConversionOptions) -> Result<()> {
         // Collect XHTML items
-        let xhtml_items: Vec<(String, String)> = book.manifest.iter()
+        let xhtml_items: Vec<(String, String)> = book
+            .manifest
+            .iter()
             .filter(|item| item.is_xhtml())
-            .filter_map(|item| item.data.as_xhtml().map(|x| (item.id.clone(), x.to_string())))
+            .filter_map(|item| {
+                item.data
+                    .as_xhtml()
+                    .map(|x| (item.id.clone(), x.to_string()))
+            })
             .collect();
 
         // Process in parallel
-        let results: Vec<(String, String)> = xhtml_items.into_par_iter()
+        let results: Vec<(String, String)> = xhtml_items
+            .into_par_iter()
             .filter_map(|(id, xhtml)| {
                 let mut new_xhtml = xhtml;
                 let mut changed = false;
@@ -50,7 +57,11 @@ impl Transform for UnsmartenPunctuation {
                         changed = true;
                     }
                 }
-                if changed { Some((id, new_xhtml)) } else { None }
+                if changed {
+                    Some((id, new_xhtml))
+                } else {
+                    None
+                }
             })
             .collect();
 
@@ -88,18 +99,14 @@ mod tests {
         );
         book.manifest.add(item);
 
-        let mut opts = ConversionOptions::default();
-        opts.unsmarten_punctuation = true;
+        let opts = ConversionOptions {
+            unsmarten_punctuation: true,
+            ..Default::default()
+        };
 
         UnsmartenPunctuation.apply(&mut book, &opts).unwrap();
 
-        let content = book
-            .manifest
-            .by_id("ch1")
-            .unwrap()
-            .data
-            .as_xhtml()
-            .unwrap();
+        let content = book.manifest.by_id("ch1").unwrap().data.as_xhtml().unwrap();
         assert!(content.contains(r#""Hello,""#));
         assert!(content.contains("'World!'"));
     }
@@ -107,9 +114,8 @@ mod tests {
     #[test]
     fn test_unsmarten_dashes_and_ellipsis() {
         let mut book = BookDocument::new();
-        let xhtml =
-            "<html><body><p>A\u{2013}B and C\u{2014}D and more\u{2026}</p></body></html>"
-                .to_string();
+        let xhtml = "<html><body><p>A\u{2013}B and C\u{2014}D and more\u{2026}</p></body></html>"
+            .to_string();
         let item = ManifestItem::new(
             "ch1",
             "ch1.xhtml",
@@ -118,18 +124,14 @@ mod tests {
         );
         book.manifest.add(item);
 
-        let mut opts = ConversionOptions::default();
-        opts.unsmarten_punctuation = true;
+        let opts = ConversionOptions {
+            unsmarten_punctuation: true,
+            ..Default::default()
+        };
 
         UnsmartenPunctuation.apply(&mut book, &opts).unwrap();
 
-        let content = book
-            .manifest
-            .by_id("ch1")
-            .unwrap()
-            .data
-            .as_xhtml()
-            .unwrap();
+        let content = book.manifest.by_id("ch1").unwrap().data.as_xhtml().unwrap();
         assert!(content.contains("A-B"));
         assert!(content.contains("C--D"));
         assert!(content.contains("more..."));
@@ -155,18 +157,14 @@ mod tests {
         );
         book.manifest.add(item);
 
-        let mut opts = ConversionOptions::default();
-        opts.unsmarten_punctuation = true;
+        let opts = ConversionOptions {
+            unsmarten_punctuation: true,
+            ..Default::default()
+        };
 
         UnsmartenPunctuation.apply(&mut book, &opts).unwrap();
 
-        let content = book
-            .manifest
-            .by_id("ch1")
-            .unwrap()
-            .data
-            .as_xhtml()
-            .unwrap();
+        let content = book.manifest.by_id("ch1").unwrap().data.as_xhtml().unwrap();
         assert_eq!(content, &xhtml);
     }
 }

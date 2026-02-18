@@ -27,13 +27,17 @@ impl Transform for DataUrl {
             .iter()
             .filter(|item| item.is_xhtml())
             .filter(|item| {
-                item.data.as_xhtml().map(|x| x.contains("data:")).unwrap_or(false)
+                item.data
+                    .as_xhtml()
+                    .map(|x| x.contains("data:"))
+                    .unwrap_or(false)
             })
             .map(|item| (item.id.clone(), item.data.as_xhtml().unwrap().to_string()))
             .collect();
 
         // Decode data URIs in parallel per XHTML item
         // Each produces: (id, new_xhtml, Vec<(mime, decoded_data, old_uri)>)
+        #[allow(clippy::type_complexity)]
         let decoded_results: Vec<(String, String, Vec<(String, Vec<u8>)>)> = xhtml_items
             .into_par_iter()
             .map(|(id, xhtml)| {
@@ -48,7 +52,8 @@ impl Transform for DataUrl {
                     let decoded = match base64::engine::general_purpose::STANDARD.decode(b64_data) {
                         Ok(d) => d,
                         Err(_) => {
-                            let cleaned: String = b64_data.chars().filter(|c| !c.is_whitespace()).collect();
+                            let cleaned: String =
+                                b64_data.chars().filter(|c| !c.is_whitespace()).collect();
                             match base64::engine::general_purpose::STANDARD.decode(&cleaned) {
                                 Ok(d) => d,
                                 Err(_) => continue,
@@ -72,7 +77,9 @@ impl Transform for DataUrl {
             for (i, (mime_type, decoded)) in decoded_items.into_iter().enumerate() {
                 count += 1;
                 let ext = mime_to_ext(&mime_type);
-                let href = book.manifest.generate_href(&format!("data_image_{}", count), ext);
+                let href = book
+                    .manifest
+                    .generate_href(&format!("data_image_{}", count), ext);
                 let item_id = book.manifest.generate_id("dataimg");
 
                 let placeholder = format!("__dataurl_placeholder_{}__", i);
@@ -80,7 +87,10 @@ impl Transform for DataUrl {
 
                 log::debug!("Extracted data URI → {}", href);
                 book.manifest.add(ManifestItem::new(
-                    item_id, href, mime_type, ManifestData::Binary(decoded),
+                    item_id,
+                    href,
+                    mime_type,
+                    ManifestData::Binary(decoded),
                 ));
             }
 

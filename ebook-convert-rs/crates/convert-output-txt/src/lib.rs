@@ -113,8 +113,15 @@ mod tests {
         book.metadata.set_title("My Book");
         book.metadata.add("creator", "Alice");
 
-        let xhtml = "<html><body><h1>Chapter 1</h1><p>Hello world.</p><p>Second para.</p></body></html>".to_string();
-        let item = ManifestItem::new("ch1", "ch1.xhtml", "application/xhtml+xml", ManifestData::Xhtml(xhtml));
+        let xhtml =
+            "<html><body><h1>Chapter 1</h1><p>Hello world.</p><p>Second para.</p></body></html>"
+                .to_string();
+        let item = ManifestItem::new(
+            "ch1",
+            "ch1.xhtml",
+            "application/xhtml+xml",
+            ManifestData::Xhtml(xhtml),
+        );
         book.manifest.add(item);
         book.spine.push("ch1", true);
         book.toc.add(TocEntry::new("Chapter 1", "ch1.xhtml"));

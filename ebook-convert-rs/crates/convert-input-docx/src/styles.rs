@@ -1,8 +1,8 @@
 //! Parse Word styles and numbering definitions for heading/list detection.
 
-use std::collections::HashMap;
 use quick_xml::events::Event;
 use quick_xml::Reader;
+use std::collections::HashMap;
 
 /// Style information extracted from word/styles.xml.
 #[derive(Debug, Clone)]
@@ -43,7 +43,8 @@ pub fn parse_styles(xml: &str) -> HashMap<String, StyleInfo> {
                         current_outline = None;
 
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                            let key =
+                                String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                             if key == "styleId" {
                                 current_id = String::from_utf8_lossy(&attr.value).to_string();
                             }
@@ -51,7 +52,8 @@ pub fn parse_styles(xml: &str) -> HashMap<String, StyleInfo> {
                     }
                     "name" if in_style => {
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                            let key =
+                                String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                             if key == "val" {
                                 current_name = String::from_utf8_lossy(&attr.value).to_string();
                             }
@@ -59,17 +61,21 @@ pub fn parse_styles(xml: &str) -> HashMap<String, StyleInfo> {
                     }
                     "basedOn" if in_style => {
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                            let key =
+                                String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                             if key == "val" {
-                                current_based_on = Some(String::from_utf8_lossy(&attr.value).to_string());
+                                current_based_on =
+                                    Some(String::from_utf8_lossy(&attr.value).to_string());
                             }
                         }
                     }
                     "outlineLvl" if in_style => {
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                            let key =
+                                String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                             if key == "val" {
-                                if let Ok(lvl) = String::from_utf8_lossy(&attr.value).parse::<u8>() {
+                                if let Ok(lvl) = String::from_utf8_lossy(&attr.value).parse::<u8>()
+                                {
                                     current_outline = Some(lvl);
                                 }
                             }
@@ -145,7 +151,8 @@ pub fn parse_numbering(xml: &str) -> HashMap<String, NumberingInfo> {
                         in_abstract = true;
                         current_format = "decimal".to_string();
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                            let key =
+                                String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                             if key == "abstractNumId" {
                                 current_num_id = String::from_utf8_lossy(&attr.value).to_string();
                             }
@@ -153,15 +160,18 @@ pub fn parse_numbering(xml: &str) -> HashMap<String, NumberingInfo> {
                     }
                     "lvl" if in_abstract => {
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                            let key =
+                                String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                             if key == "ilvl" {
-                                current_level = String::from_utf8_lossy(&attr.value).parse().unwrap_or(0);
+                                current_level =
+                                    String::from_utf8_lossy(&attr.value).parse().unwrap_or(0);
                             }
                         }
                     }
                     "numFmt" if in_abstract => {
                         for attr in e.attributes().flatten() {
-                            let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                            let key =
+                                String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                             if key == "val" {
                                 current_format = String::from_utf8_lossy(&attr.value).to_string();
                             }

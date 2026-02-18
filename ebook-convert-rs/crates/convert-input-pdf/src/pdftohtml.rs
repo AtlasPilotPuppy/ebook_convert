@@ -108,9 +108,9 @@ pub fn run_pdftohtml_xml(pdf_path: &Path) -> Result<PdfToHtmlResult> {
         .map_err(|e| ConvertError::Pdf(format!("Failed to create temp dir: {}", e)))?;
 
     let output_base = tmp_dir.path().join("output");
-    let output_base_str = output_base.to_str().ok_or_else(|| {
-        ConvertError::Pdf("Invalid temp path".to_string())
-    })?;
+    let output_base_str = output_base
+        .to_str()
+        .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
 
     log::info!("Running pdftohtml -xml on {}...", pdf_path.display());
 
@@ -131,10 +131,7 @@ pub fn run_pdftohtml_xml(pdf_path: &Path) -> Result<PdfToHtmlResult> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ConvertError::Pdf(format!(
-            "pdftohtml failed: {}",
-            stderr
-        )));
+        return Err(ConvertError::Pdf(format!("pdftohtml failed: {}", stderr)));
     }
 
     // The XML file is at output_base.xml
@@ -166,9 +163,7 @@ pub fn run_pdftohtml_xml(pdf_path: &Path) -> Result<PdfToHtmlResult> {
 }
 
 /// Parse the pdftohtml XML output.
-fn parse_pdftohtml_xml(
-    xml: &str,
-) -> Result<(Vec<FontSpec>, Vec<PdfPage>, Vec<OutlineItem>)> {
+fn parse_pdftohtml_xml(xml: &str) -> Result<(Vec<FontSpec>, Vec<PdfPage>, Vec<OutlineItem>)> {
     let mut reader = Reader::from_str(xml);
     let mut fonts: Vec<FontSpec> = Vec::new();
     let mut pages: Vec<PdfPage> = Vec::new();
@@ -211,10 +206,7 @@ fn parse_pdftohtml_xml(
                     "text" => {
                         let attrs = parse_attrs(e);
                         let te = TextElement {
-                            top: attrs
-                                .get("top")
-                                .and_then(|v| v.parse().ok())
-                                .unwrap_or(0.0),
+                            top: attrs.get("top").and_then(|v| v.parse().ok()).unwrap_or(0.0),
                             left: attrs
                                 .get("left")
                                 .and_then(|v| v.parse().ok())
@@ -227,10 +219,7 @@ fn parse_pdftohtml_xml(
                                 .get("height")
                                 .and_then(|v| v.parse().ok())
                                 .unwrap_or(0.0),
-                            font_id: attrs
-                                .get("font")
-                                .and_then(|v| v.parse().ok())
-                                .unwrap_or(0),
+                            font_id: attrs.get("font").and_then(|v| v.parse().ok()).unwrap_or(0),
                             inner_html: String::new(),
                         };
                         current_text = Some(te);
@@ -270,18 +259,12 @@ fn parse_pdftohtml_xml(
                     "fontspec" => {
                         let attrs = parse_attrs(e);
                         let font = FontSpec {
-                            id: attrs
-                                .get("id")
-                                .and_then(|v| v.parse().ok())
-                                .unwrap_or(0),
+                            id: attrs.get("id").and_then(|v| v.parse().ok()).unwrap_or(0),
                             size: attrs
                                 .get("size")
                                 .and_then(|v| v.parse().ok())
                                 .unwrap_or(0.0),
-                            family: attrs
-                                .get("family")
-                                .cloned()
-                                .unwrap_or_default(),
+                            family: attrs.get("family").cloned().unwrap_or_default(),
                             color: attrs
                                 .get("color")
                                 .cloned()
@@ -292,10 +275,7 @@ fn parse_pdftohtml_xml(
                     "image" => {
                         let attrs = parse_attrs(e);
                         let img = ImageElement {
-                            top: attrs
-                                .get("top")
-                                .and_then(|v| v.parse().ok())
-                                .unwrap_or(0.0),
+                            top: attrs.get("top").and_then(|v| v.parse().ok()).unwrap_or(0.0),
                             left: attrs
                                 .get("left")
                                 .and_then(|v| v.parse().ok())
@@ -308,10 +288,7 @@ fn parse_pdftohtml_xml(
                                 .get("height")
                                 .and_then(|v| v.parse().ok())
                                 .unwrap_or(0.0),
-                            src: attrs
-                                .get("src")
-                                .cloned()
-                                .unwrap_or_default(),
+                            src: attrs.get("src").cloned().unwrap_or_default(),
                         };
                         if let Some(ref mut page) = current_page {
                             page.images.push(img);
@@ -468,9 +445,7 @@ fn parse_outline_section(xml: &str) -> Vec<OutlineItem> {
 }
 
 /// Helper to parse attributes from a quick-xml event.
-fn parse_attrs(
-    e: &quick_xml::events::BytesStart,
-) -> std::collections::HashMap<String, String> {
+fn parse_attrs(e: &quick_xml::events::BytesStart) -> std::collections::HashMap<String, String> {
     let mut map = std::collections::HashMap::new();
     for attr in e.attributes().flatten() {
         let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();

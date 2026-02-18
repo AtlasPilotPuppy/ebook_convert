@@ -26,12 +26,8 @@ fn make_book(num_chapters: usize, num_images: usize) -> BookDocument {
              eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident.</p>",
             i
         );
-        let xhtml = convert_utils::xml::xhtml11_document(
-            &format!("Chapter {}", i),
-            "en",
-            None,
-            &body,
-        );
+        let xhtml =
+            convert_utils::xml::xhtml11_document(&format!("Chapter {}", i), "en", None, &body);
         book.manifest.add(ManifestItem::new(
             &id,
             &href,
@@ -39,10 +35,7 @@ fn make_book(num_chapters: usize, num_images: usize) -> BookDocument {
             ManifestData::Xhtml(xhtml),
         ));
         book.spine.push(&id, true);
-        book.toc.add(TocEntry::new(
-            format!("Chapter {}", i),
-            &href,
-        ));
+        book.toc.add(TocEntry::new(format!("Chapter {}", i), &href));
     }
 
     for i in 0..num_images {
@@ -51,10 +44,7 @@ fn make_book(num_chapters: usize, num_images: usize) -> BookDocument {
         let img = image::RgbaImage::new(50, 50);
         let mut buf = Vec::new();
         image::DynamicImage::ImageRgba8(img)
-            .write_to(
-                &mut std::io::Cursor::new(&mut buf),
-                image::ImageFormat::Png,
-            )
+            .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
             .unwrap();
         book.manifest.add(ManifestItem::new(
             &id,

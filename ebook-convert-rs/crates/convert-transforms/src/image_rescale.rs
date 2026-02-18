@@ -116,7 +116,10 @@ fn resize_image(
     let pixel_type = match src_image.pixel_type() {
         Some(pt) => pt,
         None => {
-            log::warn!("Unsupported pixel type for {}, falling back to image crate", href);
+            log::warn!(
+                "Unsupported pixel type for {}, falling back to image crate",
+                href
+            );
             return resize_fallback(&src_image, new_w, new_h, media_type, href);
         }
     };
@@ -129,7 +132,12 @@ fn resize_image(
     if let Err(e) = resizer.resize(&src_image, &mut dst_image, None) {
         log::warn!(
             "fast_image_resize failed for {} ({}x{} → {}x{}): {}, falling back",
-            href, w, h, new_w, new_h, e
+            href,
+            w,
+            h,
+            new_w,
+            new_h,
+            e
         );
         return resize_fallback(&src_image, new_w, new_h, media_type, href);
     }
@@ -159,11 +167,13 @@ fn resize_image(
             use image::ImageEncoder;
             let encoder_result = match format {
                 image::ImageFormat::Png => {
-                    let encoder = image::codecs::png::PngEncoder::new(std::io::Cursor::new(&mut buf));
+                    let encoder =
+                        image::codecs::png::PngEncoder::new(std::io::Cursor::new(&mut buf));
                     encoder.write_image(&raw_buffer, new_w, new_h, color_type.into())
                 }
                 _ => {
-                    let encoder = image::codecs::jpeg::JpegEncoder::new(std::io::Cursor::new(&mut buf));
+                    let encoder =
+                        image::codecs::jpeg::JpegEncoder::new(std::io::Cursor::new(&mut buf));
                     encoder.write_image(&raw_buffer, new_w, new_h, color_type.into())
                 }
             };
@@ -176,7 +186,13 @@ fn resize_image(
 
     log::info!(
         "Resized {} from {}x{} to {}x{} ({} → {} bytes)",
-        href, w, h, new_w, new_h, data.len(), buf.len()
+        href,
+        w,
+        h,
+        new_w,
+        new_h,
+        data.len(),
+        buf.len()
     );
     Some(buf)
 }
@@ -203,10 +219,7 @@ fn resize_fallback(
         return None;
     }
 
-    log::info!(
-        "Resized {} to {}x{} (fallback)",
-        href, new_w, new_h
-    );
+    log::info!("Resized {} to {}x{} (fallback)", href, new_w, new_h);
     Some(buf)
 }
 

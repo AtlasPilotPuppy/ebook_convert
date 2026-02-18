@@ -42,7 +42,9 @@ impl Transform for LinearizeTables {
         let col_tag = Regex::new(r"(?i)<col[^>]*>").unwrap();
 
         // Collect XHTML items that contain tables
-        let xhtml_items: Vec<(String, String)> = book.manifest.iter()
+        let xhtml_items: Vec<(String, String)> = book
+            .manifest
+            .iter()
             .filter(|item| item.is_xhtml())
             .filter_map(|item| {
                 item.data.as_xhtml().and_then(|x| {
@@ -56,24 +58,41 @@ impl Transform for LinearizeTables {
             .collect();
 
         // Process in parallel (Regex is Send + Sync)
-        let results: Vec<(String, String)> = xhtml_items.into_par_iter()
+        let results: Vec<(String, String)> = xhtml_items
+            .into_par_iter()
             .map(|(id, xhtml)| {
                 let mut s = xhtml;
-                s = table_open.replace_all(&s, r#"<div class="linearized-table">"#).to_string();
+                s = table_open
+                    .replace_all(&s, r#"<div class="linearized-table">"#)
+                    .to_string();
                 s = table_close.replace_all(&s, "</div>").to_string();
-                s = tr_open.replace_all(&s, r#"<div class="linearized-row">"#).to_string();
+                s = tr_open
+                    .replace_all(&s, r#"<div class="linearized-row">"#)
+                    .to_string();
                 s = tr_close.replace_all(&s, "</div>").to_string();
-                s = td_open.replace_all(&s, r#"<div class="linearized-cell">"#).to_string();
+                s = td_open
+                    .replace_all(&s, r#"<div class="linearized-cell">"#)
+                    .to_string();
                 s = td_close.replace_all(&s, "</div>").to_string();
-                s = th_open.replace_all(&s, r#"<div class="linearized-cell linearized-header">"#).to_string();
+                s = th_open
+                    .replace_all(&s, r#"<div class="linearized-cell linearized-header">"#)
+                    .to_string();
                 s = th_close.replace_all(&s, "</div>").to_string();
-                s = thead_open.replace_all(&s, r#"<div class="linearized-thead">"#).to_string();
+                s = thead_open
+                    .replace_all(&s, r#"<div class="linearized-thead">"#)
+                    .to_string();
                 s = thead_close.replace_all(&s, "</div>").to_string();
-                s = tbody_open.replace_all(&s, r#"<div class="linearized-tbody">"#).to_string();
+                s = tbody_open
+                    .replace_all(&s, r#"<div class="linearized-tbody">"#)
+                    .to_string();
                 s = tbody_close.replace_all(&s, "</div>").to_string();
-                s = tfoot_open.replace_all(&s, r#"<div class="linearized-tfoot">"#).to_string();
+                s = tfoot_open
+                    .replace_all(&s, r#"<div class="linearized-tfoot">"#)
+                    .to_string();
                 s = tfoot_close.replace_all(&s, "</div>").to_string();
-                s = caption_open.replace_all(&s, r#"<div class="linearized-caption">"#).to_string();
+                s = caption_open
+                    .replace_all(&s, r#"<div class="linearized-caption">"#)
+                    .to_string();
                 s = caption_close.replace_all(&s, "</div>").to_string();
                 s = colgroup.replace_all(&s, "").to_string();
                 s = col_tag.replace_all(&s, "").to_string();
@@ -113,8 +132,10 @@ mod tests {
         );
         book.manifest.add(item);
 
-        let mut opts = ConversionOptions::default();
-        opts.linearize_tables = true;
+        let opts = ConversionOptions {
+            linearize_tables: true,
+            ..Default::default()
+        };
 
         LinearizeTables.apply(&mut book, &opts).unwrap();
 
@@ -132,7 +153,9 @@ mod tests {
     #[test]
     fn test_linearize_th_headers() {
         let mut book = BookDocument::new();
-        let xhtml = r#"<html><body><table><tr><th>Name</th><th>Value</th></tr></table></body></html>"#.to_string();
+        let xhtml =
+            r#"<html><body><table><tr><th>Name</th><th>Value</th></tr></table></body></html>"#
+                .to_string();
         let item = ManifestItem::new(
             "ch1",
             "ch1.xhtml",
@@ -141,8 +164,10 @@ mod tests {
         );
         book.manifest.add(item);
 
-        let mut opts = ConversionOptions::default();
-        opts.linearize_tables = true;
+        let opts = ConversionOptions {
+            linearize_tables: true,
+            ..Default::default()
+        };
 
         LinearizeTables.apply(&mut book, &opts).unwrap();
 
@@ -170,8 +195,10 @@ mod tests {
         );
         book.manifest.add(item);
 
-        let mut opts = ConversionOptions::default();
-        opts.linearize_tables = true;
+        let opts = ConversionOptions {
+            linearize_tables: true,
+            ..Default::default()
+        };
 
         LinearizeTables.apply(&mut book, &opts).unwrap();
 

@@ -10,9 +10,7 @@ use quick_xml::Reader;
 use rayon::prelude::*;
 use zip::read::ZipArchive;
 
-use convert_core::book::{
-    BookDocument, GuideRef, ManifestData, ManifestItem, TocEntry,
-};
+use convert_core::book::{BookDocument, GuideRef, ManifestData, ManifestItem, TocEntry};
 use convert_core::error::{ConvertError, Result};
 use convert_utils::mime;
 
@@ -20,18 +18,15 @@ use convert_utils::mime;
 pub fn parse_epub(path: &Path) -> Result<BookDocument> {
     let file = File::open(path)
         .map_err(|e| ConvertError::Epub(format!("Cannot open {}: {}", path.display(), e)))?;
-    let mut archive = ZipArchive::new(file)
-        .map_err(|e| ConvertError::Epub(format!("Invalid ZIP: {}", e)))?;
+    let mut archive =
+        ZipArchive::new(file).map_err(|e| ConvertError::Epub(format!("Invalid ZIP: {}", e)))?;
 
     // 1. Find the OPF path from META-INF/container.xml
     let opf_path = read_container_xml(&mut archive)?;
     log::info!("OPF path: {}", opf_path);
 
     // Compute base directory for resolving relative hrefs in OPF
-    let opf_dir = opf_path
-        .rfind('/')
-        .map(|i| &opf_path[..=i])
-        .unwrap_or("");
+    let opf_dir = opf_path.rfind('/').map(|i| &opf_path[..=i]).unwrap_or("");
 
     // 2. Parse the OPF file
     let opf_content = read_archive_entry(&mut archive, &opf_path)?;
@@ -54,7 +49,7 @@ pub fn parse_epub(path: &Path) -> Result<BookDocument> {
     // 3. Read all raw bytes from ZIP (sequential — ZIP isn't thread-safe)
     let raw_entries: Vec<(String, String, String, Vec<u8>)> = manifest_map
         .iter()
-        .filter_map(|(id, (href, media_type))| {
+        .map(|(id, (href, media_type))| {
             let full_path = if opf_dir.is_empty() {
                 href.clone()
             } else {
@@ -62,10 +57,10 @@ pub fn parse_epub(path: &Path) -> Result<BookDocument> {
             };
 
             match read_archive_entry(&mut archive, &full_path) {
-                Ok(bytes) => Some((id.clone(), href.clone(), media_type.clone(), bytes)),
+                Ok(bytes) => (id.clone(), href.clone(), media_type.clone(), bytes),
                 Err(e) => {
                     log::warn!("Failed to read {}: {}", full_path, e);
-                    Some((id.clone(), href.clone(), media_type.clone(), Vec::new()))
+                    (id.clone(), href.clone(), media_type.clone(), Vec::new())
                 }
             }
         })
@@ -147,7 +142,8 @@ fn read_container_xml(archive: &mut ZipArchive<File>) -> Result<String> {
                 let local = String::from_utf8_lossy(e.local_name().as_ref()).to_string();
                 if local == "rootfile" {
                     for attr in e.attributes().flatten() {
-                        let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                        let key =
+                            String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                         if key == "full-path" {
                             return Ok(String::from_utf8_lossy(&attr.value).to_string());
                         }
@@ -155,12 +151,19 @@ fn read_container_xml(archive: &mut ZipArchive<File>) -> Result<String> {
                 }
             }
             Ok(Event::Eof) => break,
-            Err(e) => return Err(ConvertError::Epub(format!("XML error in container.xml: {}", e))),
+            Err(e) => {
+                return Err(ConvertError::Epub(format!(
+                    "XML error in container.xml: {}",
+                    e
+                )))
+            }
             _ => {}
         }
     }
 
-    Err(ConvertError::Epub("No rootfile found in container.xml".to_string()))
+    Err(ConvertError::Epub(
+        "No rootfile found in container.xml".to_string(),
+    ))
 }
 
 /// Parse OPF metadata section.
@@ -180,7 +183,8 @@ fn parse_opf_metadata(opf: &str, book: &mut BookDocument) {
                     current_tag = local.clone();
                     current_attrs.clear();
                     for attr in e.attributes().flatten() {
-                        let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                        let key =
+                            String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                         let val = String::from_utf8_lossy(&attr.value).to_string();
                         current_attrs.insert(key, val);
                     }
@@ -250,7 +254,8 @@ fn parse_opf_manifest(opf: &str, _opf_dir: &str) -> HashMap<String, (String, Str
                     let mut media_type = String::new();
 
                     for attr in e.attributes().flatten() {
-                        let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                        let key =
+                            String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                         let val = String::from_utf8_lossy(&attr.value).to_string();
                         match key.as_str() {
                             "id" => id = val,
@@ -296,7 +301,8 @@ fn parse_opf_spine(opf: &str) -> Vec<String> {
                     in_spine = true;
                 } else if local == "itemref" && in_spine {
                     for attr in e.attributes().flatten() {
-                        let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                        let key =
+                            String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                         if key == "idref" {
                             idrefs.push(String::from_utf8_lossy(&attr.value).to_string());
                         }
@@ -335,7 +341,8 @@ fn parse_opf_guide(opf: &str, opf_dir: &str, book: &mut BookDocument) {
                     let mut href = String::new();
 
                     for attr in e.attributes().flatten() {
-                        let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                        let key =
+                            String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                         let val = String::from_utf8_lossy(&attr.value).to_string();
                         match key.as_str() {
                             "type" => ref_type = val,
@@ -379,7 +386,8 @@ fn find_ncx_id(opf: &str) -> Option<String> {
                 let local = String::from_utf8_lossy(e.local_name().as_ref()).to_string();
                 if local == "spine" {
                     for attr in e.attributes().flatten() {
-                        let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                        let key =
+                            String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                         if key == "toc" {
                             return Some(String::from_utf8_lossy(&attr.value).to_string());
                         }
@@ -429,7 +437,8 @@ fn parse_ncx(ncx: &str, book: &mut BookDocument) {
                 let local = String::from_utf8_lossy(e.local_name().as_ref()).to_string();
                 if local == "content" && in_nav_point {
                     for attr in e.attributes().flatten() {
-                        let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                        let key =
+                            String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                         if key == "src" {
                             current_href = String::from_utf8_lossy(&attr.value).to_string();
                         }
@@ -488,10 +497,7 @@ fn percent_decode(s: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(byte) = u8::from_str_radix(
-                &s[i + 1..i + 3],
-                16,
-            ) {
+            if let Ok(byte) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
                 result.push(byte as char);
                 i += 3;
                 continue;

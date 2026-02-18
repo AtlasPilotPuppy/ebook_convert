@@ -158,7 +158,7 @@ fn build_content_blocks(
     // Build a sorted list of content items by vertical position
     #[derive(Debug)]
     enum Item<'a> {
-        Line(usize),       // index into lines
+        Line(usize), // index into lines
         Image(&'a ImageElement),
     }
 
@@ -172,10 +172,7 @@ fn build_content_blocks(
             let _ = epub_href; // used below when we match
         }
     }
-    items.sort_by(|a, b| {
-        a.0.partial_cmp(&b.0)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    items.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut blocks: Vec<ContentBlock> = Vec::new();
     let mut current_para_lines: Vec<String> = Vec::new();
@@ -190,9 +187,7 @@ fn build_content_blocks(
                 if let Some(prev_bottom) = last_line_bottom {
                     let gap = line.top - prev_bottom;
                     if gap > para_threshold && !current_para_lines.is_empty() {
-                        blocks.push(ContentBlock::Paragraph(
-                            current_para_lines.join(" "),
-                        ));
+                        blocks.push(ContentBlock::Paragraph(current_para_lines.join(" ")));
                         current_para_lines.clear();
                     }
                 }
@@ -211,9 +206,7 @@ fn build_content_blocks(
             Item::Image(img) => {
                 // Flush current paragraph before image
                 if !current_para_lines.is_empty() {
-                    blocks.push(ContentBlock::Paragraph(
-                        current_para_lines.join(" "),
-                    ));
+                    blocks.push(ContentBlock::Paragraph(current_para_lines.join(" ")));
                     current_para_lines.clear();
                     last_line_bottom = None;
                 }
@@ -230,9 +223,7 @@ fn build_content_blocks(
 
     // Flush remaining paragraph
     if !current_para_lines.is_empty() {
-        blocks.push(ContentBlock::Paragraph(
-            current_para_lines.join(" "),
-        ));
+        blocks.push(ContentBlock::Paragraph(current_para_lines.join(" ")));
     }
 
     blocks

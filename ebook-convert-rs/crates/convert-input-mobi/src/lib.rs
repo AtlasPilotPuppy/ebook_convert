@@ -5,9 +5,7 @@
 
 use std::path::Path;
 
-use convert_core::book::{
-    BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry,
-};
+use convert_core::book::{BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
 use convert_core::plugin::InputPlugin;
@@ -77,11 +75,10 @@ fn parse_mobi(path: &Path) -> Result<BookDocument> {
 
     // -- Extract HTML content (can panic on malformed records) --
     // Try strict first, fall back to lossy
-    let html_content = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        mobi.content_as_string()
-    }))
-    .ok()
-    .and_then(|r| r.ok());
+    let html_content =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| mobi.content_as_string()))
+            .ok()
+            .and_then(|r| r.ok());
 
     let html_content = match html_content {
         Some(s) => s,
@@ -95,10 +92,9 @@ fn parse_mobi(path: &Path) -> Result<BookDocument> {
     };
 
     // -- Extract images (can panic on malformed records) --
-    let image_records = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        mobi.image_records()
-    }))
-    .unwrap_or_default();
+    let image_records =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| mobi.image_records()))
+            .unwrap_or_default();
     let mut image_map: Vec<(String, String)> = Vec::new(); // (id, href)
 
     for (i, record) in image_records.iter().enumerate() {
@@ -125,7 +121,8 @@ fn parse_mobi(path: &Path) -> Result<BookDocument> {
     let cleaned_html = clean_mobi_html(&processed_html);
 
     // Wrap in proper XHTML
-    let xhtml = convert_utils::xml::xhtml11_document(&title, "en", Some("style.css"), &cleaned_html);
+    let xhtml =
+        convert_utils::xml::xhtml11_document(&title, "en", Some("style.css"), &cleaned_html);
 
     let content_item = ManifestItem::new(
         "content",
@@ -143,17 +140,18 @@ p:first-child { text-indent: 0; }
 h1, h2, h3 { text-indent: 0; margin: 1em 0 0.5em; }
 img { max-width: 100%; height: auto; }
 .mbp_pagebreak { page-break-after: always; }"#;
-    let css_item = ManifestItem::new("style", "style.css", "text/css", ManifestData::Css(css.to_string()));
+    let css_item = ManifestItem::new(
+        "style",
+        "style.css",
+        "text/css",
+        ManifestData::Css(css.to_string()),
+    );
     book.manifest.add(css_item);
 
     // Build basic TOC from headings
     build_toc_from_headings(&cleaned_html, &mut book);
 
-    log::info!(
-        "Parsed MOBI: \"{}\" with {} images",
-        title,
-        image_map.len()
-    );
+    log::info!("Parsed MOBI: \"{}\" with {} images", title, image_map.len());
 
     Ok(book)
 }
@@ -336,8 +334,14 @@ mod tests {
 
     #[test]
     fn test_detect_image_type() {
-        assert_eq!(detect_image_type(b"\x89PNG\r\n\x1a\n"), ("image/png", "png"));
-        assert_eq!(detect_image_type(b"\xff\xd8\xff\xe0"), ("image/jpeg", "jpg"));
+        assert_eq!(
+            detect_image_type(b"\x89PNG\r\n\x1a\n"),
+            ("image/png", "png")
+        );
+        assert_eq!(
+            detect_image_type(b"\xff\xd8\xff\xe0"),
+            ("image/jpeg", "jpg")
+        );
         assert_eq!(detect_image_type(b"GIF89a"), ("image/gif", "gif"));
         assert_eq!(detect_image_type(b"\x00\x00"), ("image/jpeg", "jpg")); // fallback
     }
@@ -351,7 +355,8 @@ mod tests {
 
     #[test]
     fn test_build_toc_from_headings() {
-        let html = r#"<h1>Chapter 1</h1><p>text</p><h2>Section 1.1</h2><p>more</p><h1>Chapter 2</h1>"#;
+        let html =
+            r#"<h1>Chapter 1</h1><p>text</p><h2>Section 1.1</h2><p>more</p><h1>Chapter 2</h1>"#;
         let mut book = BookDocument::new();
         book.metadata.set_title("Test");
         build_toc_from_headings(html, &mut book);

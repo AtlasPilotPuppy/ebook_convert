@@ -30,7 +30,8 @@ pub fn parse_relationships(xml: &str) -> HashMap<String, String> {
                     let mut id = String::new();
                     let mut target = String::new();
                     for attr in e.attributes().flatten() {
-                        let key = String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
+                        let key =
+                            String::from_utf8_lossy(attr.key.local_name().as_ref()).to_string();
                         match key.as_str() {
                             "Id" => id = String::from_utf8_lossy(&attr.value).to_string(),
                             "Target" => target = String::from_utf8_lossy(&attr.value).to_string(),
@@ -578,11 +579,14 @@ mod tests {
 </w:document>"#;
 
         let mut styles = HashMap::new();
-        styles.insert("Heading1".to_string(), StyleInfo {
-            name: "heading 1".to_string(),
-            based_on: None,
-            outline_level: Some(0),
-        });
+        styles.insert(
+            "Heading1".to_string(),
+            StyleInfo {
+                name: "heading 1".to_string(),
+                based_on: None,
+                outline_level: Some(0),
+            },
+        );
 
         let html = convert_document(xml, &HashMap::new(), &styles, &HashMap::new());
         assert!(html.contains("<h1>Chapter Title</h1>"));

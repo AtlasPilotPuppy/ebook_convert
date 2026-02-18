@@ -61,10 +61,7 @@ fn make_book(num_chapters: usize, num_images: usize) -> BookDocument {
             ManifestData::Xhtml(xhtml),
         ));
         book.spine.push(&id, true);
-        book.toc.add(TocEntry::new(
-            format!("Chapter {}", i),
-            &href,
-        ));
+        book.toc.add(TocEntry::new(format!("Chapter {}", i), &href));
     }
 
     // Add images (small 10x10 PNGs)
@@ -82,10 +79,7 @@ fn make_book(num_chapters: usize, num_images: usize) -> BookDocument {
         }
         let mut buf = Vec::new();
         image::DynamicImage::ImageRgba8(img)
-            .write_to(
-                &mut std::io::Cursor::new(&mut buf),
-                image::ImageFormat::Png,
-            )
+            .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
             .unwrap();
         book.manifest.add(ManifestItem::new(
             &id,
@@ -121,12 +115,8 @@ fn make_large_chapter_book(num_chapters: usize) -> BookDocument {
                 i, j
             ));
         }
-        let xhtml = convert_utils::xml::xhtml11_document(
-            &format!("Chapter {}", i),
-            "en",
-            None,
-            &body,
-        );
+        let xhtml =
+            convert_utils::xml::xhtml11_document(&format!("Chapter {}", i), "en", None, &body);
         book.manifest.add(ManifestItem::new(
             &id,
             &href,
@@ -134,10 +124,7 @@ fn make_large_chapter_book(num_chapters: usize) -> BookDocument {
             ManifestData::Xhtml(xhtml),
         ));
         book.spine.push(&id, true);
-        book.toc.add(TocEntry::new(
-            format!("Chapter {}", i),
-            &href,
-        ));
+        book.toc.add(TocEntry::new(format!("Chapter {}", i), &href));
     }
 
     book
@@ -162,12 +149,8 @@ fn make_book_with_data_urls(num_chapters: usize) -> BookDocument {
              <img src=\"data:image/png;base64,{}\" />",
             i, pixel_png, pixel_png
         );
-        let xhtml = convert_utils::xml::xhtml11_document(
-            &format!("Chapter {}", i),
-            "en",
-            None,
-            &body,
-        );
+        let xhtml =
+            convert_utils::xml::xhtml11_document(&format!("Chapter {}", i), "en", None, &body);
         book.manifest.add(ManifestItem::new(
             &id,
             &href,
@@ -196,12 +179,8 @@ fn make_book_with_smart_quotes(num_chapters: usize) -> BookDocument {
              <p>\u{201c}Shall we go?\u{201d} \u{2014} \u{201c}Yes, let\u{2019}s!\u{201d}</p>",
             i
         );
-        let xhtml = convert_utils::xml::xhtml11_document(
-            &format!("Chapter {}", i),
-            "en",
-            None,
-            &body,
-        );
+        let xhtml =
+            convert_utils::xml::xhtml11_document(&format!("Chapter {}", i), "en", None, &body);
         book.manifest.add(ManifestItem::new(
             &id,
             &href,
@@ -237,12 +216,8 @@ fn make_book_with_tables(num_chapters: usize) -> BookDocument {
              </table>",
             i
         );
-        let xhtml = convert_utils::xml::xhtml11_document(
-            &format!("Chapter {}", i),
-            "en",
-            None,
-            &body,
-        );
+        let xhtml =
+            convert_utils::xml::xhtml11_document(&format!("Chapter {}", i), "en", None, &body);
         book.manifest.add(ManifestItem::new(
             &id,
             &href,
@@ -356,10 +331,7 @@ fn bench_image_rescale(c: &mut Criterion) {
             let img = image::RgbaImage::new(size, size);
             let mut buf = Vec::new();
             image::DynamicImage::ImageRgba8(img)
-                .write_to(
-                    &mut std::io::Cursor::new(&mut buf),
-                    image::ImageFormat::Png,
-                )
+                .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
                 .unwrap();
             book.manifest.add(ManifestItem::new(
                 &id,
@@ -456,7 +428,9 @@ fn bench_unsmarten(c: &mut Criterion) {
                 let mut book = make_book_with_smart_quotes(n);
                 let mut opts = ConversionOptions::default();
                 opts.unsmarten_punctuation = true;
-                UnsmartenPunctuation.apply(black_box(&mut book), &opts).unwrap();
+                UnsmartenPunctuation
+                    .apply(black_box(&mut book), &opts)
+                    .unwrap();
             })
         });
     }

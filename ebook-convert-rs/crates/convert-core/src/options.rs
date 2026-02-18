@@ -158,12 +158,8 @@ where
         Some(s) => {
             let parts: Vec<&str> = s.split('x').collect();
             if parts.len() == 2 {
-                let w = parts[0]
-                    .parse::<u32>()
-                    .map_err(serde::de::Error::custom)?;
-                let h = parts[1]
-                    .parse::<u32>()
-                    .map_err(serde::de::Error::custom)?;
+                let w = parts[0].parse::<u32>().map_err(serde::de::Error::custom)?;
+                let h = parts[1].parse::<u32>().map_err(serde::de::Error::custom)?;
                 Ok(Some((w, h)))
             } else {
                 Err(serde::de::Error::custom(
@@ -286,16 +282,18 @@ mod tests {
 
     #[test]
     fn test_toml_round_trip_full() {
-        let mut opts = ConversionOptions::default();
-        opts.verbose = 2;
-        opts.jpeg_quality = 95;
-        opts.pdf_engine = PdfEngine::ImageOnly;
-        opts.chapter_mark = ChapterMark::Both;
-        opts.epub_version = EpubVersion::V3;
-        opts.max_image_size = Some((1200, 1600));
-        opts.extra_css = Some("body { font-size: 14px; }".to_string());
-        opts.unsmarten_punctuation = true;
-        opts.margin_top = 10.0;
+        let opts = ConversionOptions {
+            verbose: 2,
+            jpeg_quality: 95,
+            pdf_engine: PdfEngine::ImageOnly,
+            chapter_mark: ChapterMark::Both,
+            epub_version: EpubVersion::V3,
+            max_image_size: Some((1200, 1600)),
+            extra_css: Some("body { font-size: 14px; }".to_string()),
+            unsmarten_punctuation: true,
+            margin_top: 10.0,
+            ..Default::default()
+        };
 
         let toml_str = toml::to_string_pretty(&opts).unwrap();
         let parsed: ConversionOptions = toml::from_str(&toml_str).unwrap();
@@ -345,8 +343,10 @@ jpeg_quality = 90
         assert_eq!(opts.pdf_engine, PdfEngine::Auto);
 
         // Round-trip
-        let mut opts = ConversionOptions::default();
-        opts.pdf_engine = PdfEngine::ImageOnly;
+        let opts = ConversionOptions {
+            pdf_engine: PdfEngine::ImageOnly,
+            ..Default::default()
+        };
         let serialized = toml::to_string_pretty(&opts).unwrap();
         let parsed: ConversionOptions = toml::from_str(&serialized).unwrap();
         assert_eq!(parsed.pdf_engine, PdfEngine::ImageOnly);
@@ -367,8 +367,10 @@ jpeg_quality = 90
         assert_eq!(opts.chapter_mark, ChapterMark::None);
 
         // Round-trip
-        let mut opts = ConversionOptions::default();
-        opts.chapter_mark = ChapterMark::Rule;
+        let opts = ConversionOptions {
+            chapter_mark: ChapterMark::Rule,
+            ..Default::default()
+        };
         let serialized = toml::to_string_pretty(&opts).unwrap();
         let parsed: ConversionOptions = toml::from_str(&serialized).unwrap();
         assert_eq!(parsed.chapter_mark, ChapterMark::Rule);
@@ -385,8 +387,10 @@ jpeg_quality = 90
         assert_eq!(opts.epub_version, EpubVersion::V3);
 
         // Round-trip
-        let mut opts = ConversionOptions::default();
-        opts.epub_version = EpubVersion::V3;
+        let opts = ConversionOptions {
+            epub_version: EpubVersion::V3,
+            ..Default::default()
+        };
         let serialized = toml::to_string_pretty(&opts).unwrap();
         let parsed: ConversionOptions = toml::from_str(&serialized).unwrap();
         assert_eq!(parsed.epub_version, EpubVersion::V3);
@@ -422,10 +426,7 @@ epub_version = "2"
         assert_eq!(opts.jpeg_quality, 90);
         assert_eq!(opts.pdf_engine, PdfEngine::Auto);
         assert_eq!(opts.pdf_dpi, 300);
-        assert_eq!(
-            opts.extra_css.as_deref(),
-            Some("body { font-size: 14px; }")
-        );
+        assert_eq!(opts.extra_css.as_deref(), Some("body { font-size: 14px; }"));
         assert!(opts.unsmarten_punctuation);
         assert_eq!(opts.max_image_size, Some((1200, 1600)));
         assert_eq!(opts.margin_top, 10.0);

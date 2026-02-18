@@ -102,10 +102,8 @@ fn bench_spine_toc(c: &mut Criterion) {
         b.iter(|| {
             let mut book = BookDocument::new();
             for i in 0..100 {
-                let mut entry = TocEntry::new(
-                    format!("Chapter {}", i),
-                    &format!("chapter{}.xhtml", i),
-                );
+                let mut entry =
+                    TocEntry::new(format!("Chapter {}", i), &format!("chapter{}.xhtml", i));
                 // Add some children for depth
                 for j in 0..3 {
                     entry.add_child(TocEntry::new(
@@ -122,10 +120,7 @@ fn bench_spine_toc(c: &mut Criterion) {
     group.bench_function("iterate_toc_depth_first_100", |b| {
         let mut book = BookDocument::new();
         for i in 0..100 {
-            let mut entry = TocEntry::new(
-                format!("Chapter {}", i),
-                &format!("chapter{}.xhtml", i),
-            );
+            let mut entry = TocEntry::new(format!("Chapter {}", i), &format!("chapter{}.xhtml", i));
             for j in 0..3 {
                 entry.add_child(TocEntry::new(
                     format!("Section {}.{}", i, j),

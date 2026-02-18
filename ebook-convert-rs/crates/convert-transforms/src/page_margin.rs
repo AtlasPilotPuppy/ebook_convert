@@ -60,10 +60,15 @@ fn remove_fake_margins(book: &mut BookDocument) {
         .manifest
         .iter()
         .filter(|item| item.is_xhtml())
-        .filter_map(|item| item.data.as_xhtml().map(|x| (item.id.clone(), x.to_string())))
+        .filter_map(|item| {
+            item.data
+                .as_xhtml()
+                .map(|x| (item.id.clone(), x.to_string()))
+        })
         .collect();
 
     // First pass: collect margin statistics in parallel
+    #[allow(clippy::type_complexity)]
     let stats: Vec<(HashMap<String, u32>, HashMap<String, u32>, u32)> = xhtml_items
         .par_iter()
         .map(|(_, xhtml)| {
@@ -99,8 +104,12 @@ fn remove_fake_margins(book: &mut BookDocument) {
 
     for (lc, rc, t) in stats {
         total_styled += t;
-        for (k, v) in lc { *left_counts.entry(k).or_insert(0) += v; }
-        for (k, v) in rc { *right_counts.entry(k).or_insert(0) += v; }
+        for (k, v) in lc {
+            *left_counts.entry(k).or_insert(0) += v;
+        }
+        for (k, v) in rc {
+            *right_counts.entry(k).or_insert(0) += v;
+        }
     }
 
     if total_styled == 0 {
@@ -124,15 +133,16 @@ fn remove_fake_margins(book: &mut BookDocument) {
     }
 
     let empty_style = Regex::new(r#"\s*style\s*=\s*"\s*""#).unwrap();
-    let left_re = dominant_left.as_ref().and_then(|d| {
-        Regex::new(&format!(r"margin-left\s*:\s*{}\s*;?", regex::escape(d))).ok()
-    });
-    let right_re = dominant_right.as_ref().and_then(|d| {
-        Regex::new(&format!(r"margin-right\s*:\s*{}\s*;?", regex::escape(d))).ok()
-    });
+    let left_re = dominant_left
+        .as_ref()
+        .and_then(|d| Regex::new(&format!(r"margin-left\s*:\s*{}\s*;?", regex::escape(d))).ok());
+    let right_re = dominant_right
+        .as_ref()
+        .and_then(|d| Regex::new(&format!(r"margin-right\s*:\s*{}\s*;?", regex::escape(d))).ok());
 
     // Second pass: remove dominant margins in parallel
-    let results: Vec<(String, String)> = xhtml_items.into_par_iter()
+    let results: Vec<(String, String)> = xhtml_items
+        .into_par_iter()
         .filter_map(|(id, xhtml)| {
             let mut new_xhtml = xhtml.clone();
 
@@ -144,7 +154,11 @@ fn remove_fake_margins(book: &mut BookDocument) {
             }
             new_xhtml = empty_style.replace_all(&new_xhtml, "").to_string();
 
-            if new_xhtml != xhtml { Some((id, new_xhtml)) } else { None }
+            if new_xhtml != xhtml {
+                Some((id, new_xhtml))
+            } else {
+                None
+            }
         })
         .collect();
 
@@ -219,13 +233,7 @@ mod tests {
         let opts = ConversionOptions::default();
         PageMargin.apply(&mut book, &opts).unwrap();
 
-        let content = book
-            .manifest
-            .by_id("ch1")
-            .unwrap()
-            .data
-            .as_xhtml()
-            .unwrap();
+        let content = book.manifest.by_id("ch1").unwrap().data.as_xhtml().unwrap();
         assert!(!content.contains("margin-left: 2em"));
     }
 
@@ -255,13 +263,7 @@ mod tests {
         let opts = ConversionOptions::default();
         PageMargin.apply(&mut book, &opts).unwrap();
 
-        let content = book
-            .manifest
-            .by_id("ch1")
-            .unwrap()
-            .data
-            .as_xhtml()
-            .unwrap();
+        let content = book.manifest.by_id("ch1").unwrap().data.as_xhtml().unwrap();
         // All margins should remain since none is dominant
         assert!(content.contains("margin-left"));
     }

@@ -43,8 +43,7 @@ fn remove_first_image(book: &mut BookDocument) {
         if let Some(xhtml) = item.data.as_xhtml() {
             let re = Regex::new(r"<img[^>]*>").unwrap();
             if let Some(m) = re.find(xhtml) {
-                let new_xhtml =
-                    format!("{}{}", &xhtml[..m.start()], &xhtml[m.end()..]);
+                let new_xhtml = format!("{}{}", &xhtml[..m.start()], &xhtml[m.end()..]);
                 item.data = ManifestData::Xhtml(new_xhtml);
                 log::info!("Removed first image from spine item {}", first_idref);
             }
@@ -54,17 +53,9 @@ fn remove_first_image(book: &mut BookDocument) {
 
 /// Build and insert a jacket XHTML page at spine[0].
 fn insert_jacket(book: &mut BookDocument) {
-    let title = book
-        .metadata
-        .title()
-        .unwrap_or("Unknown Title")
-        .to_string();
+    let title = book.metadata.title().unwrap_or("Unknown Title").to_string();
     let authors = book.metadata.authors().join(", ");
-    let publisher = book
-        .metadata
-        .publisher()
-        .unwrap_or("")
-        .to_string();
+    let publisher = book.metadata.publisher().unwrap_or("").to_string();
     let date = book.metadata.date().unwrap_or("").to_string();
     let description = book.metadata.description().unwrap_or("").to_string();
 
@@ -99,10 +90,7 @@ fn insert_jacket(book: &mut BookDocument) {
         } else {
             format!("{} #{}", escape_html(&series), escape_html(&series_index))
         };
-        body_parts.push(format!(
-            r#"<p class="jacket-series">{}</p>"#,
-            series_text
-        ));
+        body_parts.push(format!(r#"<p class="jacket-series">{}</p>"#, series_text));
     }
 
     if !publisher.is_empty() {
@@ -194,8 +182,10 @@ mod tests {
         book.manifest.add(ch1);
         book.spine.push("ch1", true);
 
-        let mut opts = ConversionOptions::default();
-        opts.insert_metadata = true;
+        let opts = ConversionOptions {
+            insert_metadata: true,
+            ..Default::default()
+        };
 
         Jacket.apply(&mut book, &opts).unwrap();
 
@@ -216,8 +206,7 @@ mod tests {
     #[test]
     fn test_remove_first_image() {
         let mut book = BookDocument::new();
-        let xhtml =
-            r#"<html><body><img src="cover.png"/><p>Hello</p></body></html>"#.to_string();
+        let xhtml = r#"<html><body><img src="cover.png"/><p>Hello</p></body></html>"#.to_string();
         let ch1 = ManifestItem::new(
             "ch1",
             "chapter1.xhtml",
@@ -227,8 +216,10 @@ mod tests {
         book.manifest.add(ch1);
         book.spine.push("ch1", true);
 
-        let mut opts = ConversionOptions::default();
-        opts.remove_first_image = true;
+        let opts = ConversionOptions {
+            remove_first_image: true,
+            ..Default::default()
+        };
 
         Jacket.apply(&mut book, &opts).unwrap();
 

@@ -1,17 +1,17 @@
 //! Ebook conversion transforms — applied between input and output.
 
-pub mod data_url;
 pub mod clean_guide;
-pub mod merge_metadata;
+pub mod css_flattener;
+pub mod data_url;
 pub mod detect_structure;
+pub mod image_rescale;
 pub mod jacket;
 pub mod linearize_tables;
-pub mod unsmarten;
-pub mod css_flattener;
-pub mod page_margin;
-pub mod image_rescale;
-pub mod split_chapters;
 pub mod manifest_trimmer;
+pub mod merge_metadata;
+pub mod page_margin;
+pub mod split_chapters;
+pub mod unsmarten;
 
 use convert_core::plugin::Transform;
 

@@ -9,9 +9,8 @@ use convert_core::plugin::Transform;
 
 /// Generate an HTML file with N chapters.
 fn generate_html(num_chapters: usize) -> String {
-    let mut html = String::from(
-        "<!DOCTYPE html>\n<html>\n<head><title>Benchmark</title></head>\n<body>\n",
-    );
+    let mut html =
+        String::from("<!DOCTYPE html>\n<html>\n<head><title>Benchmark</title></head>\n<body>\n");
     for i in 0..num_chapters {
         html.push_str(&format!(
             "<h1>Chapter {}</h1>\n\
@@ -60,10 +59,10 @@ fn bench_html_to_epub(c: &mut Criterion) {
                 opts.input_format = Some(EbookFormat::Html);
                 opts.output_format = Some(EbookFormat::Epub);
 
-                let input_plugin =
-                    Box::new(convert_input_html::HtmlInputPlugin) as Box<dyn convert_core::plugin::InputPlugin>;
-                let output_plugin =
-                    Box::new(convert_output_epub::EpubOutputPlugin) as Box<dyn convert_core::plugin::OutputPlugin>;
+                let input_plugin = Box::new(convert_input_html::HtmlInputPlugin)
+                    as Box<dyn convert_core::plugin::InputPlugin>;
+                let output_plugin = Box::new(convert_output_epub::EpubOutputPlugin)
+                    as Box<dyn convert_core::plugin::OutputPlugin>;
                 let transforms: Vec<Box<dyn Transform>> = convert_transforms::standard_transforms();
 
                 let mut builder = PipelineBuilder::new()
@@ -73,7 +72,9 @@ fn bench_html_to_epub(c: &mut Criterion) {
                     builder = builder.transform(t);
                 }
                 let pipeline = builder.build().unwrap();
-                pipeline.run(black_box(&input_path), &output_path, &opts).unwrap();
+                pipeline
+                    .run(black_box(&input_path), &output_path, &opts)
+                    .unwrap();
             });
 
             std::fs::remove_file(&input_path).ok();
@@ -101,10 +102,10 @@ fn bench_txt_to_epub(c: &mut Criterion) {
                 opts.input_format = Some(EbookFormat::Txt);
                 opts.output_format = Some(EbookFormat::Epub);
 
-                let input_plugin =
-                    Box::new(convert_input_txt::TxtInputPlugin) as Box<dyn convert_core::plugin::InputPlugin>;
-                let output_plugin =
-                    Box::new(convert_output_epub::EpubOutputPlugin) as Box<dyn convert_core::plugin::OutputPlugin>;
+                let input_plugin = Box::new(convert_input_txt::TxtInputPlugin)
+                    as Box<dyn convert_core::plugin::InputPlugin>;
+                let output_plugin = Box::new(convert_output_epub::EpubOutputPlugin)
+                    as Box<dyn convert_core::plugin::OutputPlugin>;
                 let transforms: Vec<Box<dyn Transform>> = convert_transforms::standard_transforms();
 
                 let mut builder = PipelineBuilder::new()
@@ -114,7 +115,9 @@ fn bench_txt_to_epub(c: &mut Criterion) {
                     builder = builder.transform(t);
                 }
                 let pipeline = builder.build().unwrap();
-                pipeline.run(black_box(&input_path), &output_path, &opts).unwrap();
+                pipeline
+                    .run(black_box(&input_path), &output_path, &opts)
+                    .unwrap();
             });
 
             std::fs::remove_file(&input_path).ok();

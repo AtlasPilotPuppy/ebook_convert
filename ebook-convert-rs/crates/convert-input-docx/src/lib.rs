@@ -14,9 +14,7 @@ mod styles;
 use std::io::Read;
 use std::path::Path;
 
-use convert_core::book::{
-    BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry,
-};
+use convert_core::book::{BookDocument, EbookFormat, ManifestData, ManifestItem, TocEntry};
 use convert_core::error::{ConvertError, Result};
 use convert_core::options::ConversionOptions;
 use convert_core::plugin::InputPlugin;
@@ -95,9 +93,7 @@ fn parse_docx(path: &Path) -> Result<BookDocument> {
 
     for img_name in &image_names {
         if let Ok(data) = read_zip_binary(&mut archive, img_name) {
-            let filename = img_name
-                .strip_prefix("word/")
-                .unwrap_or(img_name);
+            let filename = img_name.strip_prefix("word/").unwrap_or(img_name);
             let mime = convert_utils::mime::mime_from_path(Path::new(filename));
             let id = book.manifest.generate_id("img");
             let item = ManifestItem::new(id, filename, mime, ManifestData::Binary(data));
@@ -139,7 +135,12 @@ blockquote { margin: 0.5em 1em; padding-left: 1em; border-left: 3px solid #ccc; 
 .docx-center { text-align: center; }
 .docx-right { text-align: right; }
 .docx-justify { text-align: justify; }"#;
-    let css_item = ManifestItem::new("style", "style.css", "text/css", ManifestData::Css(css.to_string()));
+    let css_item = ManifestItem::new(
+        "style",
+        "style.css",
+        "text/css",
+        ManifestData::Css(css.to_string()),
+    );
     book.manifest.add(css_item);
 
     // -- Build TOC from headings --
@@ -183,7 +184,10 @@ fn build_toc(html: &str, title: &str, book: &mut BookDocument) {
     }
 }
 
-fn read_zip_string(archive: &mut zip::ZipArchive<std::fs::File>, name: &str) -> std::result::Result<String, String> {
+fn read_zip_string(
+    archive: &mut zip::ZipArchive<std::fs::File>,
+    name: &str,
+) -> std::result::Result<String, String> {
     let mut file = archive
         .by_name(name)
         .map_err(|e| format!("{}: {}", name, e))?;
@@ -193,7 +197,10 @@ fn read_zip_string(archive: &mut zip::ZipArchive<std::fs::File>, name: &str) -> 
     Ok(s)
 }
 
-fn read_zip_binary(archive: &mut zip::ZipArchive<std::fs::File>, name: &str) -> std::result::Result<Vec<u8>, String> {
+fn read_zip_binary(
+    archive: &mut zip::ZipArchive<std::fs::File>,
+    name: &str,
+) -> std::result::Result<Vec<u8>, String> {
     let mut file = archive
         .by_name(name)
         .map_err(|e| format!("{}: {}", name, e))?;

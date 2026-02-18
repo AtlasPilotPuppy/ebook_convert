@@ -24,10 +24,7 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn new(
-        input_plugin: Box<dyn InputPlugin>,
-        output_plugin: Box<dyn OutputPlugin>,
-    ) -> Self {
+    pub fn new(input_plugin: Box<dyn InputPlugin>, output_plugin: Box<dyn OutputPlugin>) -> Self {
         Self {
             input_plugin,
             output_plugin,
@@ -58,16 +55,17 @@ impl Pipeline {
         self.report_progress(0.0, "Starting conversion...");
 
         info!("Running {} input plugin...", self.input_plugin.name());
-        self.report_progress(0.01, &format!("Running {} plugin", self.input_plugin.name()));
+        self.report_progress(
+            0.01,
+            &format!("Running {} plugin", self.input_plugin.name()),
+        );
 
         let mut book = self.input_plugin.convert(input_path, options)?;
 
         // If the input plugin didn't set a title, derive one from the filename
         if book.metadata.title().is_none() {
             if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
-                let title = stem
-                    .replace('_', " ")
-                    .replace('-', " ");
+                let title = stem.replace(['_', '-'], " ");
                 info!("No title in metadata; using filename: {}", title);
                 book.metadata.set_title(title);
             }
@@ -172,10 +170,7 @@ fn dump_book_debug(book: &BookDocument, dir: &Path) {
     // Dump manifest listing
     let mut manifest_lines = Vec::new();
     for item in book.manifest.iter() {
-        manifest_lines.push(format!(
-            "{}\t{}\t{}",
-            item.id, item.href, item.media_type
-        ));
+        manifest_lines.push(format!("{}\t{}\t{}", item.id, item.href, item.media_type));
     }
     let manifest_path = dir.join("manifest.txt");
     std::fs::write(manifest_path, manifest_lines.join("\n")).ok();
@@ -274,7 +269,12 @@ mod tests {
         fn output_format(&self) -> EbookFormat {
             EbookFormat::Epub
         }
-        fn convert(&self, _book: &BookDocument, _path: &Path, _opts: &ConversionOptions) -> Result<()> {
+        fn convert(
+            &self,
+            _book: &BookDocument,
+            _path: &Path,
+            _opts: &ConversionOptions,
+        ) -> Result<()> {
             Ok(())
         }
     }
@@ -289,7 +289,8 @@ mod tests {
         fn apply(&self, book: &mut BookDocument, _opts: &ConversionOptions) -> Result<()> {
             // Just append to title to prove it ran
             let current = book.metadata.title().unwrap_or("").to_string();
-            book.metadata.set_title(format!("{} [{}]", current, self.name));
+            book.metadata
+                .set_title(format!("{} [{}]", current, self.name));
             Ok(())
         }
     }
