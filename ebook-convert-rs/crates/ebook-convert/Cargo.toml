@@ -16,6 +16,8 @@ convert-input-pdf = { path = "../convert-input-pdf" }
 convert-input-epub = { path = "../convert-input-epub" }
 convert-input-html = { path = "../convert-input-html" }
 convert-input-txt = { path = "../convert-input-txt" }
+convert-input-mobi = { path = "../convert-input-mobi" }
+convert-input-docx = { path = "../convert-input-docx" }
 convert-output-epub = { path = "../convert-output-epub" }
 convert-output-html = { path = "../convert-output-html" }
 convert-output-txt = { path = "../convert-output-txt" }

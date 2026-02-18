@@ -20,6 +20,12 @@ pub enum ConvertError {
     #[error("EPUB error: {0}")]
     Epub(String),
 
+    #[error("MOBI error: {0}")]
+    Mobi(String),
+
+    #[error("DOCX error: {0}")]
+    Docx(String),
+
     #[error("Invalid manifest: {0}")]
     Manifest(String),
 

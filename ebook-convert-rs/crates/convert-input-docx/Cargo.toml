@@ -9,3 +9,6 @@ convert-core = { path = "../convert-core" }
 convert-utils = { path = "../convert-utils" }
 thiserror.workspace = true
 log.workspace = true
+zip.workspace = true
+quick-xml.workspace = true
+regex.workspace = true

@@ -16,6 +16,7 @@ fast_image_resize.workspace = true
 regex.workspace = true
 url.workspace = true
 uuid.workspace = true
+base64.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
