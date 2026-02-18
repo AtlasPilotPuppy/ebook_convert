@@ -2,6 +2,8 @@
 
 A high-performance Rust reimplementation of [Calibre's](https://calibre-ebook.com/) `ebook-convert` command-line tool. Converts between ebook formats using a three-phase pipeline architecture with parallel processing via [rayon](https://github.com/rayon-rs/rayon).
 
+Mirrored from - https://git.asthana.site/atlas/ebook_convert
+
 ## Supported Formats
 
 | Input Formats | Output Formats |
