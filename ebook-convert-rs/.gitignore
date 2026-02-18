@@ -1,0 +1,19 @@
+# Rust build artifacts
+/target/
+**/target/
+
+# Cargo lock for libraries (keep for binary crates)
+# Cargo.lock is kept since this has a binary
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug/test output
+*.epub
+*.pdf
+debug_pipeline/

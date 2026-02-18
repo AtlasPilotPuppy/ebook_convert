@@ -1,0 +1,14 @@
+[package]
+name = "convert-utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+log.workspace = true
+zip.workspace = true
+quick-xml.workspace = true
+encoding_rs.workspace = true
+mime_guess.workspace = true
+percent-encoding.workspace = true

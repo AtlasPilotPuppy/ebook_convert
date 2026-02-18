@@ -1,0 +1,21 @@
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# MCP config (local)
+.mcp.json
+
+# Test artifacts
+*.epub
+*.pdf
+epub_test/
+epubcheck-*/
+
+# Python source (reference only, not part of Rust project)
+/ebook-convert/

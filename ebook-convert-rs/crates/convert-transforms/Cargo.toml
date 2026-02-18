@@ -1,0 +1,26 @@
+[package]
+name = "convert-transforms"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+convert-core = { path = "../convert-core" }
+convert-utils = { path = "../convert-utils" }
+thiserror.workspace = true
+log.workspace = true
+rayon.workspace = true
+lightningcss.workspace = true
+image.workspace = true
+fast_image_resize.workspace = true
+regex.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+convert-utils = { path = "../convert-utils" }
+
+[[bench]]
+name = "transforms_bench"
+harness = false

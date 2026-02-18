@@ -1,0 +1,12 @@
+[package]
+name = "convert-input-html"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+convert-core = { path = "../convert-core" }
+convert-utils = { path = "../convert-utils" }
+thiserror.workspace = true
+log.workspace = true
+regex.workspace = true

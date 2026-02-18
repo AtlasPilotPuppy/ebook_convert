@@ -1,0 +1,77 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ebook-convert",
+    "crates/convert-core",
+    "crates/convert-transforms",
+    "crates/convert-utils",
+    "crates/convert-input-epub",
+    "crates/convert-input-html",
+    "crates/convert-input-mobi",
+    "crates/convert-input-txt",
+    "crates/convert-input-docx",
+    "crates/convert-input-pdf",
+    "crates/convert-output-epub",
+    "crates/convert-output-pdf",
+    "crates/convert-output-mobi",
+    "crates/convert-output-html",
+    "crates/convert-output-txt",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0"
+
+[workspace.dependencies]
+# Core
+thiserror = "2"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+
+# Parallelism
+rayon = "1.11"
+tokio = { version = "1", features = ["full"] }
+
+# HTML/XML/CSS
+html5ever = "0.38"
+markup5ever = "0.38"
+quick-xml = "0.37"
+scraper = "0.25"
+lightningcss = "1.0.0-alpha.70"
+
+# Image
+image = "0.25"
+fast_image_resize = { version = "6", features = ["image"] }
+
+# Archive
+zip = "8"
+
+# PDF
+lopdf = "0.39"
+
+# EPUB
+epub-builder = "0.8"
+
+# Markdown
+pulldown-cmark = "0.13"
+
+# Encoding
+encoding_rs = "0.8"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Testing
+criterion = "0.8"
+
+# Utils
+uuid = { version = "1", features = ["v4"] }
+mime_guess = "2"
+url = "2"
+percent-encoding = "2"
+regex = "1"
+once_cell = "1"
