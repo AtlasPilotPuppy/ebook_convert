@@ -113,7 +113,7 @@ jobs:
             target: x86_64-pc-windows-msvc
             binary: ebook-convert-rs.exe
           - name: macos-x86_64
-            os: macos-13
+            os: macos-latest
             target: x86_64-apple-darwin
             binary: ebook-convert-rs
           - name: macos-aarch64
