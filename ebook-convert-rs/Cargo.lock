@@ -712,7 +712,7 @@ checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
 name = "convert-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "log",
@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-docx"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-epub"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-fb2"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "convert-core",
@@ -767,7 +767,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-html"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -778,7 +778,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-mobi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-odt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -802,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-pdf"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-rtf"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -827,7 +827,7 @@ dependencies = [
 
 [[package]]
 name = "convert-input-txt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -838,7 +838,7 @@ dependencies = [
 
 [[package]]
 name = "convert-output-epub"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -854,7 +854,7 @@ dependencies = [
 
 [[package]]
 name = "convert-output-html"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -864,7 +864,7 @@ dependencies = [
 
 [[package]]
 name = "convert-output-mobi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -876,7 +876,7 @@ dependencies = [
 
 [[package]]
 name = "convert-output-pdf"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -891,7 +891,7 @@ dependencies = [
 
 [[package]]
 name = "convert-output-txt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "convert-core",
  "convert-utils",
@@ -902,7 +902,7 @@ dependencies = [
 
 [[package]]
 name = "convert-transforms"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "convert-core",
@@ -921,7 +921,7 @@ dependencies = [
 
 [[package]]
 name = "convert-utils"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "encoding_rs",
  "log",
@@ -1246,7 +1246,7 @@ dependencies = [
 
 [[package]]
 name = "ebook-convert"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",

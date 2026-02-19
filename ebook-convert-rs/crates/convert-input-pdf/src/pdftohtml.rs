@@ -219,75 +219,74 @@ pub fn run_pdftohtml_xml_parallel(pdf_path: &Path, num_pages: u32) -> Result<Pdf
     type ChunkResult = Result<(Vec<FontSpec>, Vec<PdfPage>, PathBuf, tempfile::TempDir)>;
 
     // Spawn parallel pdftohtml processes using scoped threads
-    let chunk_results: Vec<ChunkResult> =
-        std::thread::scope(|s| {
-            let handles: Vec<_> = chunks
-                .iter()
-                .map(|&(first, last)| {
-                    s.spawn(move || -> ChunkResult {
-                        log::info!(
-                            "[pdftohtml] Processing pages {}-{} of {}...",
-                            first,
-                            last,
-                            num_pages
-                        );
+    let chunk_results: Vec<ChunkResult> = std::thread::scope(|s| {
+        let handles: Vec<_> = chunks
+            .iter()
+            .map(|&(first, last)| {
+                s.spawn(move || -> ChunkResult {
+                    log::info!(
+                        "[pdftohtml] Processing pages {}-{} of {}...",
+                        first,
+                        last,
+                        num_pages
+                    );
 
-                        let tmp_dir = tempfile::TempDir::new().map_err(|e| {
-                            ConvertError::Pdf(format!("Failed to create temp dir: {}", e))
+                    let tmp_dir = tempfile::TempDir::new().map_err(|e| {
+                        ConvertError::Pdf(format!("Failed to create temp dir: {}", e))
+                    })?;
+
+                    let output_base = tmp_dir.path().join("output");
+                    let output_base_str = output_base
+                        .to_str()
+                        .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
+
+                    let output = Command::new("pdftohtml")
+                        .arg("-xml")
+                        .arg("-enc")
+                        .arg("UTF-8")
+                        .arg("-noframes")
+                        .arg("-p")
+                        .arg("-nomerge")
+                        .arg("-nodrm")
+                        .arg("-fmt")
+                        .arg("jpg")
+                        .arg("-f")
+                        .arg(first.to_string())
+                        .arg("-l")
+                        .arg(last.to_string())
+                        .arg(pdf_path.as_os_str())
+                        .arg(output_base_str)
+                        .output()
+                        .map_err(|e| {
+                            ConvertError::Pdf(format!("Failed to run pdftohtml: {}", e))
                         })?;
 
-                        let output_base = tmp_dir.path().join("output");
-                        let output_base_str = output_base
-                            .to_str()
-                            .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
+                    if !output.status.success() {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        return Err(ConvertError::Pdf(format!(
+                            "pdftohtml failed for pages {}-{}: {}",
+                            first, last, stderr
+                        )));
+                    }
 
-                        let output = Command::new("pdftohtml")
-                            .arg("-xml")
-                            .arg("-enc")
-                            .arg("UTF-8")
-                            .arg("-noframes")
-                            .arg("-p")
-                            .arg("-nomerge")
-                            .arg("-nodrm")
-                            .arg("-fmt")
-                            .arg("jpg")
-                            .arg("-f")
-                            .arg(first.to_string())
-                            .arg("-l")
-                            .arg(last.to_string())
-                            .arg(pdf_path.as_os_str())
-                            .arg(output_base_str)
-                            .output()
-                            .map_err(|e| {
-                                ConvertError::Pdf(format!("Failed to run pdftohtml: {}", e))
-                            })?;
+                    let xml_path = tmp_dir.path().join("output.xml");
+                    let xml_content = std::fs::read_to_string(&xml_path).map_err(|e| {
+                        ConvertError::Pdf(format!(
+                            "Failed to read pdftohtml XML output at {}: {}",
+                            xml_path.display(),
+                            e
+                        ))
+                    })?;
 
-                        if !output.status.success() {
-                            let stderr = String::from_utf8_lossy(&output.stderr);
-                            return Err(ConvertError::Pdf(format!(
-                                "pdftohtml failed for pages {}-{}: {}",
-                                first, last, stderr
-                            )));
-                        }
-
-                        let xml_path = tmp_dir.path().join("output.xml");
-                        let xml_content = std::fs::read_to_string(&xml_path).map_err(|e| {
-                            ConvertError::Pdf(format!(
-                                "Failed to read pdftohtml XML output at {}: {}",
-                                xml_path.display(),
-                                e
-                            ))
-                        })?;
-
-                        let (fonts, pages, _outline) = parse_pdftohtml_xml(&xml_content)?;
-                        let image_dir = tmp_dir.path().to_path_buf();
-                        Ok((fonts, pages, image_dir, tmp_dir))
-                    })
+                    let (fonts, pages, _outline) = parse_pdftohtml_xml(&xml_content)?;
+                    let image_dir = tmp_dir.path().to_path_buf();
+                    Ok((fonts, pages, image_dir, tmp_dir))
                 })
-                .collect();
+            })
+            .collect();
 
-            handles.into_iter().map(|h| h.join().unwrap()).collect()
-        });
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
 
     // Extract outline separately from the full document (fast with -i to skip images)
     let outline = extract_outline_only(pdf_path)?;
