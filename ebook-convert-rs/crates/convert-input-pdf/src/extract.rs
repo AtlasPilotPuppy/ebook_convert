@@ -128,8 +128,8 @@ fn extract_hybrid(
     options: &ConversionOptions,
     book: &mut BookDocument,
 ) -> Result<()> {
-    // Step 1: Run pdftohtml
-    let pdftohtml_result = match pdftohtml::run_pdftohtml_xml(pdf_path) {
+    // Step 1: Run pdftohtml (parallel for large documents)
+    let pdftohtml_result = match pdftohtml::run_pdftohtml_xml_parallel(pdf_path, num_pages) {
         Ok(result) => result,
         Err(e) => {
             log::warn!("pdftohtml failed: {}. Falling back to image-only mode.", e);
@@ -186,18 +186,23 @@ fn extract_hybrid(
     };
 
     // Step 5: Load pdftohtml-extracted images into manifest
-    // Collect image entries with their paths
-    let image_dir = &pdftohtml_result.image_dir;
+    // Collect image entries with their paths (search across all image dirs)
+    let image_dirs = &pdftohtml_result.image_dirs;
     let image_entries: Vec<(u32, String, std::path::PathBuf)> = html_pages
         .iter()
         .flat_map(|page| {
             page.images.iter().filter_map(move |img_elem| {
-                let src_path = image_dir.join(&img_elem.src);
-                if src_path.exists() {
-                    Some((page.number, img_elem.src.clone(), src_path))
-                } else {
-                    None
-                }
+                image_dirs
+                    .iter()
+                    .find_map(|dir| {
+                        let src_path = dir.join(&img_elem.src);
+                        if src_path.exists() {
+                            Some(src_path)
+                        } else {
+                            None
+                        }
+                    })
+                    .map(|src_path| (page.number, img_elem.src.clone(), src_path))
             })
         })
         .collect();

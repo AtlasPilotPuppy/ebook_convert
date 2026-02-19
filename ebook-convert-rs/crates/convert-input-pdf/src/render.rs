@@ -97,54 +97,73 @@ pub fn render_page_ranges(
         ranges.len()
     );
 
-    let mut result: HashMap<u32, Vec<u8>> = HashMap::new();
+    // Process ranges in parallel — each spawns its own pdftoppm + temp dir
+    let page_numbers_set: std::collections::HashSet<u32> = page_numbers.iter().copied().collect();
 
-    for (first, last) in &ranges {
-        let tmp_dir = tempfile::TempDir::new()
-            .map_err(|e| ConvertError::Pdf(format!("Failed to create temp dir: {}", e)))?;
+    let batch_results: Vec<Result<HashMap<u32, Vec<u8>>>> = ranges
+        .par_iter()
+        .map(|(first, last)| {
+            log::info!(
+                "[pdftoppm] Rendering pages {}-{} of {} scanned...",
+                first,
+                last,
+                total_pages
+            );
 
-        let prefix = tmp_dir.path().join("page");
-        let prefix_str = prefix
-            .to_str()
-            .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
+            let tmp_dir = tempfile::TempDir::new()
+                .map_err(|e| ConvertError::Pdf(format!("Failed to create temp dir: {}", e)))?;
 
-        let output = Command::new("pdftoppm")
-            .arg("-jpeg")
-            .arg("-jpegopt")
-            .arg(format!("quality={}", quality))
-            .arg("-r")
-            .arg(&dpi)
-            .arg("-f")
-            .arg(first.to_string())
-            .arg("-l")
-            .arg(last.to_string())
-            .arg(pdf_path.as_os_str())
-            .arg(prefix_str)
-            .output()
-            .map_err(|e| ConvertError::Pdf(format!("Failed to run pdftoppm: {}", e)))?;
+            let prefix = tmp_dir.path().join("page");
+            let prefix_str = prefix
+                .to_str()
+                .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(ConvertError::Pdf(format!(
-                "pdftoppm failed for pages {}-{}: {}",
-                first, last, stderr
-            )));
-        }
+            let output = Command::new("pdftoppm")
+                .arg("-jpeg")
+                .arg("-jpegopt")
+                .arg(format!("quality={}", quality))
+                .arg("-r")
+                .arg(&dpi)
+                .arg("-f")
+                .arg(first.to_string())
+                .arg("-l")
+                .arg(last.to_string())
+                .arg(pdf_path.as_os_str())
+                .arg(prefix_str)
+                .output()
+                .map_err(|e| ConvertError::Pdf(format!("Failed to run pdftoppm: {}", e)))?;
 
-        // Collect rendered pages from this batch
-        for page_num in *first..=*last {
-            if page_numbers.contains(&page_num) {
-                if let Some(path) = find_rendered_page(tmp_dir.path(), page_num, total_pages) {
-                    let data = std::fs::read(&path).map_err(|e| {
-                        ConvertError::Pdf(format!(
-                            "Failed to read rendered page {}: {}",
-                            page_num, e
-                        ))
-                    })?;
-                    result.insert(page_num, data);
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(ConvertError::Pdf(format!(
+                    "pdftoppm failed for pages {}-{}: {}",
+                    first, last, stderr
+                )));
+            }
+
+            // Collect rendered pages from this batch
+            let mut batch: HashMap<u32, Vec<u8>> = HashMap::new();
+            for page_num in *first..=*last {
+                if page_numbers_set.contains(&page_num) {
+                    if let Some(path) = find_rendered_page(tmp_dir.path(), page_num, total_pages) {
+                        let data = std::fs::read(&path).map_err(|e| {
+                            ConvertError::Pdf(format!(
+                                "Failed to read rendered page {}: {}",
+                                page_num, e
+                            ))
+                        })?;
+                        batch.insert(page_num, data);
+                    }
                 }
             }
-        }
+            Ok(batch)
+        })
+        .collect();
+
+    // Merge all batch results
+    let mut result: HashMap<u32, Vec<u8>> = HashMap::new();
+    for batch_result in batch_results {
+        result.extend(batch_result?);
     }
 
     Ok(result)

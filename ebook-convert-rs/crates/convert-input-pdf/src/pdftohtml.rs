@@ -82,10 +82,10 @@ pub struct PdfToHtmlResult {
     pub fonts: Vec<FontSpec>,
     pub pages: Vec<PdfPage>,
     pub outline: Vec<OutlineItem>,
-    /// Directory containing extracted images.
-    pub image_dir: PathBuf,
-    /// Keep temp dir alive until we're done with it.
-    pub _tmp_dir: tempfile::TempDir,
+    /// Directories containing extracted images (one per chunk in parallel mode).
+    pub image_dirs: Vec<PathBuf>,
+    /// Keep temp dirs alive until we're done with them.
+    pub _tmp_dirs: Vec<tempfile::TempDir>,
 }
 
 /// Run `pdftohtml -xml` on a PDF and parse the resulting XML.
@@ -157,9 +157,219 @@ pub fn run_pdftohtml_xml(pdf_path: &Path) -> Result<PdfToHtmlResult> {
         fonts,
         pages,
         outline,
-        image_dir: tmp_dir.path().to_path_buf(),
-        _tmp_dir: tmp_dir,
+        image_dirs: vec![tmp_dir.path().to_path_buf()],
+        _tmp_dirs: vec![tmp_dir],
     })
+}
+
+/// Minimum page count to trigger parallel extraction.
+const PARALLEL_MIN_PAGES: u32 = 50;
+
+/// Maximum number of parallel pdftohtml worker processes.
+const PARALLEL_MAX_WORKERS: usize = 8;
+
+/// Run `pdftohtml -xml` in parallel by splitting into page-range chunks.
+///
+/// For documents with more than [`PARALLEL_MIN_PAGES`] pages, spawns multiple
+/// `pdftohtml` processes (one per chunk) using `std::thread::scope`, then merges
+/// their results. The outline is extracted separately from the full document.
+///
+/// For small documents (≤50 pages), delegates to [`run_pdftohtml_xml`].
+pub fn run_pdftohtml_xml_parallel(pdf_path: &Path, num_pages: u32) -> Result<PdfToHtmlResult> {
+    if num_pages <= PARALLEL_MIN_PAGES {
+        return run_pdftohtml_xml(pdf_path);
+    }
+
+    // Check that pdftohtml is available
+    let which = Command::new("which")
+        .arg("pdftohtml")
+        .output()
+        .map_err(|e| ConvertError::Pdf(format!("Failed to check for pdftohtml: {}", e)))?;
+
+    if !which.status.success() {
+        return Err(ConvertError::Pdf(
+            "pdftohtml (poppler-utils) is required for PDF conversion. \
+             Install with: brew install poppler (macOS) or apt install poppler-utils (Linux)"
+                .to_string(),
+        ));
+    }
+
+    let num_workers = std::thread::available_parallelism()
+        .map(|n| n.get().min(PARALLEL_MAX_WORKERS))
+        .unwrap_or(4);
+    let chunk_size = (num_pages as usize).div_ceil(num_workers);
+
+    log::info!(
+        "Running pdftohtml -xml in parallel: {} pages across {} workers (chunk size {})...",
+        num_pages,
+        num_workers,
+        chunk_size
+    );
+
+    // Build chunk ranges: (first_page, last_page)
+    let mut chunks: Vec<(u32, u32)> = Vec::new();
+    let mut start = 1u32;
+    while start <= num_pages {
+        let end = (start + chunk_size as u32 - 1).min(num_pages);
+        chunks.push((start, end));
+        start = end + 1;
+    }
+
+    // Result type for each parallel chunk
+    type ChunkResult = Result<(Vec<FontSpec>, Vec<PdfPage>, PathBuf, tempfile::TempDir)>;
+
+    // Spawn parallel pdftohtml processes using scoped threads
+    let chunk_results: Vec<ChunkResult> =
+        std::thread::scope(|s| {
+            let handles: Vec<_> = chunks
+                .iter()
+                .map(|&(first, last)| {
+                    s.spawn(move || -> ChunkResult {
+                        log::info!(
+                            "[pdftohtml] Processing pages {}-{} of {}...",
+                            first,
+                            last,
+                            num_pages
+                        );
+
+                        let tmp_dir = tempfile::TempDir::new().map_err(|e| {
+                            ConvertError::Pdf(format!("Failed to create temp dir: {}", e))
+                        })?;
+
+                        let output_base = tmp_dir.path().join("output");
+                        let output_base_str = output_base
+                            .to_str()
+                            .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
+
+                        let output = Command::new("pdftohtml")
+                            .arg("-xml")
+                            .arg("-enc")
+                            .arg("UTF-8")
+                            .arg("-noframes")
+                            .arg("-p")
+                            .arg("-nomerge")
+                            .arg("-nodrm")
+                            .arg("-fmt")
+                            .arg("jpg")
+                            .arg("-f")
+                            .arg(first.to_string())
+                            .arg("-l")
+                            .arg(last.to_string())
+                            .arg(pdf_path.as_os_str())
+                            .arg(output_base_str)
+                            .output()
+                            .map_err(|e| {
+                                ConvertError::Pdf(format!("Failed to run pdftohtml: {}", e))
+                            })?;
+
+                        if !output.status.success() {
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            return Err(ConvertError::Pdf(format!(
+                                "pdftohtml failed for pages {}-{}: {}",
+                                first, last, stderr
+                            )));
+                        }
+
+                        let xml_path = tmp_dir.path().join("output.xml");
+                        let xml_content = std::fs::read_to_string(&xml_path).map_err(|e| {
+                            ConvertError::Pdf(format!(
+                                "Failed to read pdftohtml XML output at {}: {}",
+                                xml_path.display(),
+                                e
+                            ))
+                        })?;
+
+                        let (fonts, pages, _outline) = parse_pdftohtml_xml(&xml_content)?;
+                        let image_dir = tmp_dir.path().to_path_buf();
+                        Ok((fonts, pages, image_dir, tmp_dir))
+                    })
+                })
+                .collect();
+
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+
+    // Extract outline separately from the full document (fast with -i to skip images)
+    let outline = extract_outline_only(pdf_path)?;
+
+    // Merge results from all chunks
+    let mut all_fonts: Vec<FontSpec> = Vec::new();
+    let mut all_pages: Vec<PdfPage> = Vec::new();
+    let mut image_dirs: Vec<PathBuf> = Vec::new();
+    let mut tmp_dirs: Vec<tempfile::TempDir> = Vec::new();
+    let mut seen_font_ids = std::collections::HashSet::new();
+
+    for chunk_result in chunk_results {
+        let (fonts, pages, image_dir, tmp_dir) = chunk_result?;
+
+        // Deduplicate fonts by ID (each chunk may re-declare the same fonts)
+        for font in fonts {
+            if seen_font_ids.insert(font.id) {
+                all_fonts.push(font);
+            }
+        }
+
+        all_pages.extend(pages);
+        image_dirs.push(image_dir);
+        tmp_dirs.push(tmp_dir);
+    }
+
+    // Sort pages by page number to ensure correct order
+    all_pages.sort_by_key(|p| p.number);
+
+    log::info!(
+        "pdftohtml parallel: {} fonts, {} pages, {} outline items",
+        all_fonts.len(),
+        all_pages.len(),
+        outline.len()
+    );
+
+    Ok(PdfToHtmlResult {
+        fonts: all_fonts,
+        pages: all_pages,
+        outline,
+        image_dirs,
+        _tmp_dirs: tmp_dirs,
+    })
+}
+
+/// Extract only the outline/TOC from a PDF using `pdftohtml -xml -i` (skip images for speed).
+fn extract_outline_only(pdf_path: &Path) -> Result<Vec<OutlineItem>> {
+    let tmp_dir = tempfile::TempDir::new()
+        .map_err(|e| ConvertError::Pdf(format!("Failed to create temp dir: {}", e)))?;
+
+    let output_base = tmp_dir.path().join("output");
+    let output_base_str = output_base
+        .to_str()
+        .ok_or_else(|| ConvertError::Pdf("Invalid temp path".to_string()))?;
+
+    let output = Command::new("pdftohtml")
+        .arg("-xml")
+        .arg("-enc")
+        .arg("UTF-8")
+        .arg("-i") // ignore images — faster for outline extraction
+        .arg("-noframes")
+        .arg("-nodrm")
+        .arg(pdf_path.as_os_str())
+        .arg(output_base_str)
+        .output()
+        .map_err(|e| ConvertError::Pdf(format!("Failed to run pdftohtml for outline: {}", e)))?;
+
+    if !output.status.success() {
+        // Non-fatal: return empty outline
+        log::warn!("pdftohtml outline extraction failed, continuing without outline");
+        return Ok(Vec::new());
+    }
+
+    let xml_path = tmp_dir.path().join("output.xml");
+    let xml_content = std::fs::read_to_string(&xml_path).unwrap_or_default();
+
+    if xml_content.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let (_fonts, _pages, outline) = parse_pdftohtml_xml(&xml_content)?;
+    Ok(outline)
 }
 
 /// Parse the pdftohtml XML output.
